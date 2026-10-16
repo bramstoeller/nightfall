@@ -78,7 +78,7 @@ def flowing_smoke(name,rect,t):
         scale=.78 if layer==0 else .52
         u=x*scale+48*np.sin(y*.017-TAU*t/30+layer*2.1)+24*np.sin(x*.012+TAU*t/40)+sw*t/120+layer*151
         v=y*scale+38*np.cos(x*.015+TAU*t/20+layer)+19*np.sin(y*.013-TAU*t/60)+sh*t/(60 if layer==0 else 40)+layer*97
-        u=u%sw;v=v%sh;ix=u.astype(np.int32);iy=v.astype(np.int32)
+        u=u%sw;v=v%sh;ix=np.minimum(u.astype(np.int32),sw-1);iy=np.minimum(v.astype(np.int32),sh-1)
         fx=(u-ix.astype(np.float32))[...,None];fy=(v-iy.astype(np.float32))[...,None]
         ix1=(ix+1)%sw;iy1=(iy+1)%sh
         top=source[iy,ix]*(1-fx)+source[iy,ix1]*fx
