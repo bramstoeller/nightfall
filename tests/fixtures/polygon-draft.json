@@ -1,0 +1,1117 @@
+{
+  "schema": "nightfall.projector-map",
+  "version": 1,
+  "output": {
+    "width": 800,
+    "height": 1280,
+    "fps": 30,
+    "duration": 120
+  },
+  "effects": {
+    "lightning_strength": 0.85,
+    "tree_strength": 0.22,
+    "architecture_strength": 0.1
+  },
+  "editor_view": {
+    "centre_origin": true,
+    "rotation_degrees": 1.035336376063085
+  },
+  "title": "Example Halloween house",
+  "locked": false,
+  "setup": {
+    "lens_position": "",
+    "tripod": "",
+    "zoom": "",
+    "focus": "",
+    "keystone": "",
+    "lens_shift": "",
+    "notes": ""
+  },
+  "calibration": {
+    "status": "example",
+    "method": "example-projector-polygons",
+    "physical_alignment_verified": false
+  },
+  "regions": [
+    {
+      "id": "right",
+      "name": "Right upper window",
+      "type": "window",
+      "color": "#80d8eb",
+      "enabled": true,
+      "gain": 1,
+      "projector_points": [
+        [
+          399.0456887612808,
+          636.7420966401666
+        ],
+        [
+          532.340704909053,
+          634.3331896865052
+        ],
+        [
+          535.1142346025638,
+          770.3272455469531
+        ],
+        [
+          404.0676871194473,
+          778.1122632972963
+        ]
+      ],
+      "paper_screen": false,
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "frame-right",
+      "name": "Right window frame",
+      "type": "frame",
+      "projector_points": [
+        [
+          399.0456887612808,
+          636.7420966401666
+        ],
+        [
+          532.340704909053,
+          634.3331896865052
+        ],
+        [
+          535.1142346025638,
+          770.3272455469531
+        ],
+        [
+          404.0676871194473,
+          778.1122632972963
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "border_width": 4,
+      "parent": "right",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "frame-right-middle",
+      "name": "Frame Right Middle",
+      "type": "frame",
+      "projector_points": [
+        [
+          460.0673202958109,
+          637.3499288015325
+        ],
+        [
+          475.21376683781256,
+          636.7491421090067
+        ],
+        [
+          477.23161618517486,
+          774.9100807080703
+        ],
+        [
+          461.1216267630382,
+          775.6927512771298
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "parent": "right",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "curtain-r1",
+      "name": "Right window: left curtain",
+      "type": "curtain",
+      "color": "#c9e58b",
+      "enabled": true,
+      "gain": 1,
+      "parent": "right",
+      "projector_points": [
+        [
+          409.6754822191165,
+          715.290257766896
+        ],
+        [
+          455.3370138719668,
+          714.1471246130805
+        ],
+        [
+          459.1790729912102,
+          763.6553759458458
+        ],
+        [
+          410.8771601371023,
+          769.0872483497594
+        ]
+      ],
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "curtain-r2",
+      "name": "Right window: right curtain",
+      "type": "curtain",
+      "color": "#c9e58b",
+      "enabled": true,
+      "gain": 1,
+      "parent": "right",
+      "projector_points": [
+        [
+          480.46798359130725,
+          714.8552814910769
+        ],
+        [
+          524.1009962897754,
+          713.008140901809
+        ],
+        [
+          525.8742295792138,
+          762.5163325628599
+        ],
+        [
+          482.85461973319366,
+          763.8029597192618
+        ]
+      ],
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "attic",
+      "name": "Attic window",
+      "type": "window",
+      "color": "#bfb1ff",
+      "enabled": true,
+      "gain": 1,
+      "projector_points": [
+        [
+          298.89570676840293,
+          381.34886007659674
+        ],
+        [
+          344.89322778415607,
+          385.8097705112247
+        ],
+        [
+          348.4139519131292,
+          485.721333583312
+        ],
+        [
+          301.86008088239123,
+          486.42290263824685
+        ]
+      ],
+      "paper_screen": false,
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "frame-attic",
+      "name": "Attic window frame",
+      "type": "frame",
+      "projector_points": [
+        [
+          298.89570676840293,
+          381.34886007659674
+        ],
+        [
+          344.89322778415607,
+          385.8097705112247
+        ],
+        [
+          348.4139519131292,
+          485.721333583312
+        ],
+        [
+          301.86008088239123,
+          486.42290263824685
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "border_width": 4,
+      "parent": "attic",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "left",
+      "name": "Left upper window",
+      "type": "window",
+      "color": "#80d8eb",
+      "enabled": true,
+      "gain": 1,
+      "projector_points": [
+        [
+          264.041464117653,
+          639.1818924023514
+        ],
+        [
+          107.63314810405312,
+          642.0085028109352
+        ],
+        [
+          118.13946706172486,
+          795.0982603435764
+        ],
+        [
+          271.5073128659827,
+          785.9872122095392
+        ]
+      ],
+      "paper_screen": false,
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "frame-left",
+      "name": "Frame Left",
+      "type": "frame",
+      "projector_points": [
+        [
+          264.041464117653,
+          639.1818924023514
+        ],
+        [
+          107.63314810405312,
+          642.0085028109352
+        ],
+        [
+          118.13946706172486,
+          795.0982603435764
+        ],
+        [
+          271.5073128659827,
+          785.9872122095392
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "border_width": 4,
+      "parent": "left",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "frame-left-middle",
+      "name": "Frame Left Middle",
+      "type": "frame",
+      "projector_points": [
+        [
+          195.79891902981944,
+          642.2600747309343
+        ],
+        [
+          177.98349494146913,
+          642.243398923434
+        ],
+        [
+          189.07963749878496,
+          792.1266291951102
+        ],
+        [
+          207.87497619611554,
+          790.8102350905443
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "parent": "left",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "curtain-left",
+      "name": "Left curtain",
+      "type": "curtain",
+      "color": "#c9e58b",
+      "enabled": false,
+      "gain": 1,
+      "parent": "left",
+      "projector_points": [
+        [
+          259.7173153046953,
+          721.4561561641566
+        ],
+        [
+          208.63264073169893,
+          724.3447228624177
+        ],
+        [
+          208.95571589012167,
+          777.6892552931478
+        ],
+        [
+          263.34145847408126,
+          777.4794629427471
+        ]
+      ],
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "roof",
+      "name": "Roof trim",
+      "type": "edge",
+      "color": "#ff9864",
+      "enabled": true,
+      "gain": 1,
+      "projector_points": [
+        [
+          0,
+          511.8843923447344
+        ],
+        [
+          315.58618408376583,
+          134.6259281848718
+        ],
+        [
+          697.9468503443637,
+          715.3215960824002
+        ],
+        [
+          682.4904481156584,
+          721.26176406669
+        ],
+        [
+          313.2678633743805,
+          162.30567035817893
+        ],
+        [
+          16.5478800568788,
+          517.3732809656684
+        ]
+      ],
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "facade",
+      "name": "Facade",
+      "type": "surface",
+      "color": "#768dff",
+      "enabled": true,
+      "gain": 1,
+      "projector_points": [
+        [
+          10.46943568679624,
+          512.2029304692396
+        ],
+        [
+          312.96545433577035,
+          152.5238062459558
+        ],
+        [
+          684.9935305858303,
+          714.9201427627385
+        ],
+        [
+          674.6375076832567,
+          999.9938531099332
+        ],
+        [
+          167.26103854922408,
+          1055.4035444871188
+        ],
+        [
+          0,
+          904.2524353236031
+        ]
+      ],
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay",
+      "name": "Bay window group",
+      "type": "surface",
+      "color": "#f6ce79",
+      "enabled": true,
+      "gain": 1,
+      "projector_points": [
+        [
+          314.04273591954575,
+          899.4856004685331
+        ],
+        [
+          581.6416773149857,
+          864.1000182302627
+        ],
+        [
+          610.3087045316813,
+          885.9658757202944
+        ],
+        [
+          588.3590579749035,
+          978.3052565186965
+        ],
+        [
+          536.734456977887,
+          1006.0420345677633
+        ],
+        [
+          387.0294770425182,
+          1027.0220622097052
+        ],
+        [
+          315.25886745388124,
+          1040.1447303959035
+        ]
+      ],
+      "role": "group",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-window-front",
+      "name": "Bay Window Front",
+      "type": "window",
+      "projector_points": [
+        [
+          388.92036097238423,
+          935.8336400250696
+        ],
+        [
+          537.9056791448281,
+          913.6554467871223
+        ],
+        [
+          536.734456977887,
+          1006.0420345677633
+        ],
+        [
+          387.0294770425182,
+          1027.0220622097052
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "paper_screen": false,
+      "parent": "bay",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "frame-bay-window-front",
+      "name": "Frame Bay Window Front",
+      "type": "frame",
+      "projector_points": [
+        [
+          388.92036097238423,
+          935.8336400250696
+        ],
+        [
+          537.9056791448281,
+          913.6554467871223
+        ],
+        [
+          536.734456977887,
+          1006.0420345677633
+        ],
+        [
+          387.0294770425182,
+          1027.0220622097052
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "border_width": 3,
+      "parent": "bay-window-front",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "frame-bay-middle",
+      "name": "Frame Bay Middle",
+      "type": "frame",
+      "projector_points": [
+        [
+          461.224467903251,
+          925.0921286563503
+        ],
+        [
+          469.8463593980808,
+          923.7000329869088
+        ],
+        [
+          467.9461756391033,
+          1015.8027598197773
+        ],
+        [
+          459.21995344681613,
+          1017.5775831174236
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "parent": "bay-window-front",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-lower-front-links",
+      "name": "Bay Lower Front Links",
+      "type": "curtain",
+      "projector_points": [
+        [
+          393.72090766978505,
+          987.7655899163169
+        ],
+        [
+          457.51557451410116,
+          978.5909360959132
+        ],
+        [
+          456.9533140046917,
+          1011.7053257104945
+        ],
+        [
+          393.0485483428626,
+          1020.6946908328536
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": false,
+      "gain": 1,
+      "parent": "bay-window-front",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-lower-front-rechts",
+      "name": "Bay Lower Front Rechts",
+      "type": "curtain",
+      "projector_points": [
+        [
+          466.47923523486503,
+          977.3018238841158
+        ],
+        [
+          531.1695667896166,
+          967.9983597091183
+        ],
+        [
+          530.7361503997661,
+          1001.3264306586226
+        ],
+        [
+          465.9325559229412,
+          1010.4422323669984
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": false,
+      "gain": 1,
+      "parent": "bay-window-front",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-window-left",
+      "name": "Bay Window Left",
+      "type": "window",
+      "projector_points": [
+        [
+          320.61154585355786,
+          946.674611249857
+        ],
+        [
+          388.92036097238423,
+          935.8336400250696
+        ],
+        [
+          387.0294770425182,
+          1027.0220622097052
+        ],
+        [
+          315.25886745388124,
+          1040.1447303959035
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "paper_screen": false,
+      "parent": "bay",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "frame-bay-window-left",
+      "name": "Frame Bay Window Left",
+      "type": "frame",
+      "projector_points": [
+        [
+          320.61154585355786,
+          946.674611249857
+        ],
+        [
+          388.92036097238423,
+          935.8336400250696
+        ],
+        [
+          387.0294770425182,
+          1027.0220622097052
+        ],
+        [
+          315.25886745388124,
+          1040.1447303959035
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "border_width": 3,
+      "parent": "bay-window-left",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-lower-left",
+      "name": "Bay Lower Left",
+      "type": "curtain",
+      "projector_points": [
+        [
+          322.57555867580686,
+          998.9060328655731
+        ],
+        [
+          383.01055968464726,
+          988.4855909201228
+        ],
+        [
+          382.2264281474854,
+          1022.1908442203143
+        ],
+        [
+          320.69223315716476,
+          1033.3486882110185
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": false,
+      "gain": 1,
+      "parent": "bay-window-left",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-window-right",
+      "name": "Bay Window Right",
+      "type": "window",
+      "projector_points": [
+        [
+          537.9056791448281,
+          913.6554467871223
+        ],
+        [
+          583.8028934337318,
+          906.0822596903101
+        ],
+        [
+          588.3590579749035,
+          978.3052565186965
+        ],
+        [
+          536.734456977887,
+          1006.0420345677633
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "paper_screen": false,
+      "parent": "bay",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "frame-bay-window-right",
+      "name": "Frame Bay Window Right",
+      "type": "frame",
+      "projector_points": [
+        [
+          537.9056791448281,
+          913.6554467871223
+        ],
+        [
+          583.8028934337318,
+          906.0822596903101
+        ],
+        [
+          588.3590579749035,
+          978.3052565186965
+        ],
+        [
+          536.734456977887,
+          1006.0420345677633
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "border_width": 3,
+      "parent": "bay-window-right",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-lower-right",
+      "name": "Bay Lower Right",
+      "type": "curtain",
+      "projector_points": [
+        [
+          541.4779055684182,
+          962.4936844637863
+        ],
+        [
+          583.5283459730036,
+          946.9985669053393
+        ],
+        [
+          585.168937259731,
+          974.9662238133625
+        ],
+        [
+          541.2564505465497,
+          997.4456200039929
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": false,
+      "gain": 1,
+      "parent": "bay-window-right",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-platform",
+      "name": "Bay Platform",
+      "type": "platform",
+      "projector_points": [
+        [
+          314.04273591954575,
+          899.4856004685331
+        ],
+        [
+          581.6416773149857,
+          864.1000182302627
+        ],
+        [
+          610.3087045316813,
+          885.9658757202944
+        ],
+        [
+          541.1522151226372,
+          897.4904750127392
+        ],
+        [
+          392.09434949118423,
+          918.5112131297017
+        ],
+        [
+          313.68330571382864,
+          925.0400517954533
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "parent": "bay",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-trim",
+      "name": "Bay front trim",
+      "type": "frame",
+      "projector_points": [
+        [
+          388.8266314855336,
+          917.0001851476374
+        ],
+        [
+          541.9121402776308,
+          895.8561365704858
+        ],
+        [
+          541.4921606386004,
+          916.6299339890695
+        ],
+        [
+          387.9820559489816,
+          938.4735407258504
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "parent": "bay",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-trim-left",
+      "name": "Bay left trim",
+      "type": "frame",
+      "projector_points": [
+        [
+          312.9395601504766,
+          903.9360453793321
+        ],
+        [
+          388.8266314855336,
+          917.0001851476374
+        ],
+        [
+          387.9820559489816,
+          938.4735407258504
+        ],
+        [
+          315.87928556103833,
+          934.6182464326655
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "parent": "bay",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-trim-right",
+      "name": "Bay right trim",
+      "type": "frame",
+      "projector_points": [
+        [
+          541.9121402776308,
+          895.8561365704858
+        ],
+        [
+          606.9694638476257,
+          879.9745446428425
+        ],
+        [
+          603.2765571261505,
+          901.8043740920784
+        ],
+        [
+          541.4921606386004,
+          916.6299339890695
+        ]
+      ],
+      "color": "#ffd39c",
+      "enabled": true,
+      "gain": 1,
+      "parent": "bay",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "bay-stage",
+      "name": "Bay Stage",
+      "type": "stage",
+      "projector_points": [
+        [
+          378.4637269605132,
+          782.2825893560365
+        ],
+        [
+          562.191712829605,
+          769.6532141294454
+        ],
+        [
+          560.4100236231475,
+          868.8823327663249
+        ],
+        [
+          373.85194592596105,
+          893.8778082844469
+        ]
+      ],
+      "color": "#c9a7ff",
+      "enabled": true,
+      "gain": 1,
+      "parent": "bay",
+      "role": "content-canvas",
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    },
+    {
+      "id": "tree",
+      "name": "Tree",
+      "type": "occluder",
+      "color": "#68c7a1",
+      "enabled": true,
+      "gain": 1,
+      "projector_points": [
+        [
+          0,
+          583
+        ],
+        [
+          50,
+          552
+        ],
+        [
+          110,
+          561
+        ],
+        [
+          161,
+          598
+        ],
+        [
+          190,
+          668
+        ],
+        [
+          251,
+          723
+        ],
+        [
+          291,
+          781
+        ],
+        [
+          310,
+          810
+        ],
+        [
+          282,
+          846
+        ],
+        [
+          331,
+          881
+        ],
+        [
+          340,
+          947
+        ],
+        [
+          273,
+          987
+        ],
+        [
+          135,
+          1017
+        ],
+        [
+          0,
+          1025
+        ]
+      ],
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    }
+  ],
+  "exclusions": [
+    {
+      "id": "exclusion-roof-inner",
+      "name": "Roof inner mask",
+      "type": "exclusion",
+      "parent": "roof",
+      "color": "#ff657b",
+      "projector_points": [
+        [
+          18.2964830987792,
+          522.1159905156262
+        ],
+        [
+          312.3689652984839,
+          163.57013633384844
+        ],
+        [
+          681.8712808599245,
+          719.8167050522827
+        ],
+        [
+          672.4842256593341,
+          718.8318632575924
+        ],
+        [
+          311.1704963200097,
+          185.7644820950875
+        ],
+        [
+          32.91590608357811,
+          528.0568883315447
+        ]
+      ],
+      "uncertain": true,
+      "alignment_status": "needs-alignment"
+    }
+  ],
+  "alignment": {
+    "anchors": [
+      {
+        "name": "Window corner",
+        "point": [
+          404.5052130387635,
+          636.6563809833989
+        ],
+        "color": "#00ffff"
+      },
+      {
+        "name": "Roof apex",
+        "point": [
+          318.8857956147988,
+          134.71988990626303
+        ],
+        "color": "#ff8070"
+      },
+      {
+        "name": "Right roof edge",
+        "point": [
+          733.4552125151763,
+          721.9164180454931
+        ],
+        "color": "#7fffa8"
+      }
+    ],
+    "origin": {
+      "region_id": "right",
+      "vertex_index": 0,
+      "name": "Upper-left corner of right window"
+    }
+  },
+  "vertex_links": [],
+  "reference": {
+    "width": 992,
+    "height": 1585,
+    "filename": "../../examples/house-night.png"
+  },
+  "reference_placement": {
+    "x": 0,
+    "y": 0,
+    "width": 800,
+    "height": 1280
+  },
+  "reference_photos": {
+    "day": {
+      "reference": {
+        "width": 992,
+        "height": 1586,
+        "filename": "../../examples/house-day.png"
+      },
+      "reference_placement": {
+        "x": 0,
+        "y": 0,
+        "width": 800,
+        "height": 1280
+      }
+    }
+  },
+  "editor_photo": "day"
+}
