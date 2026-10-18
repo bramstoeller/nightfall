@@ -2,6 +2,8 @@
 
 The character sprites and leaf texture were generated for this project and are included locally so the application works offline. Character motion, masks, lighting and cloud flow are implemented by the renderer.
 
+The expanded character cast and five-second/60-fps animation rigs are documented, with their exact image-generation prompts, in [ANIMATION-PROMPTS.md](ANIMATION-PROMPTS.md).
+
 ## Generated example house
 
 `examples/house.json` retains the authorized configuration's projector polygons and effect settings. It contains no embedded photos, camera calibration, photo measurements, personal setup notes, location names or private paths. All labels are English. `examples/layout.png` is a diagram drawn from those coordinates; the bay glazing divisions are illustrative and do not change the projector masks.

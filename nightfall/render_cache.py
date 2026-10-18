@@ -2,7 +2,7 @@
 import hashlib,json
 from .model import ROOT, WORK_ROOT
 
-SOURCES=['renderer.py','effects.py','animation.py','atmosphere.py','routes.py','tone.py']
+SOURCES=['renderer.py','effects.py','animation.py','atmosphere.py','routes.py','tone.py','spectacle.py']
 
 def folder(data):
     digest=hashlib.sha256(json.dumps({k:data.get(k) for k in ['regions','exclusions','effects','output']},sort_keys=True).encode())

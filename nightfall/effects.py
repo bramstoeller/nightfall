@@ -5,19 +5,21 @@ from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QRadialGradient,
 from .model import region
 from .animation import skeleton_frame
 from .atmosphere import clouds,curtain_fire,soft_colour,inset
+from .spectacle import STYLES as SPECTACLE_STYLES, draw_spectacle, architecture_lights
 
 TAU=2*math.pi
 SMOKE_STRENGTH=.5
 STYLES={
-    'young':('Ghost party','#fff0ad','#c0f9ff','Friendly ghosts, dancing bones and golden fireflies.'),
-    'older':('Blue-purple ghost mist','#397bff','#a644ff','Deep blue and purple smoke, wispy ghosts and lightning.'),
+    'young':('Children’s show · 2 minutes','#fff0ad','#c0f9ff','Ghosts, dancing skeletons, pumpkins, owls, light waves and a breathing house.'),
+    'older':('Brave visitors’ show · 2 minutes','#397bff','#a644ff','Ghost mist, bats, spiders, electric frames, clockwork, fire and Cheshire.'),
     'aurora':('Green magic smoke','#32ec78','#13cadf','Green smoke, yellow-green fireflies and a breathing tree.'),
     'embers':('Red fire glow','#ff3824','#ffac20','Red-orange clouds, glowing embers and curtain flames.'),
     'moonlight':('Blue moon mist','#46aaff','#7449ed','Calm blue clouds with a soft purple glow.'),
     'shadowplay':('Purple night wings','#c83eff','#f4479e','Purple smoke, pink glow, bats and attic eyes.'),
     'cheshire':('Cheshire · vanishing cat','#b942f5','#ff67b9','A striped cat fades into purple smoke, leaving its grin behind.'),
-    'show':('Complete show · 2 minutes','#b942f5','#32ec78','Skeletons, fireflies, smoke, fire and Cheshire with gentle transitions.'),
+    'show':('Complete show · 2 minutes','#b942f5','#32ec78','Twelve scenes with character animation, architectural motion, fire and Cheshire.'),
 }
+STYLES.update(SPECTACLE_STYLES)
 OLD={'older','moonlight','shadowplay'}
 
 def envelope(t,start,length,period=30):
@@ -261,6 +263,8 @@ def _cheshire_layers(p,b,t):
 def draw_extras(p,data,r,t,mode,shape,b):
     if mode not in STYLES:return
     _,c1,c2,_=STYLES[mode]
+    if mode in SPECTACLE_STYLES:
+        draw_spectacle(p,data,r,t,mode,shape,b,c1,c2);return
     p.save();gain=p.opacity()
     if r['id']=='facade':
         p.setCompositionMode(QPainter.CompositionMode_Screen)
@@ -305,3 +309,6 @@ def draw_extras(p,data,r,t,mode,shape,b):
             y=((t/4+i/7)%1);p.setOpacity(gain*.75*math.sin(math.pi*y)**2)
             p.setBrush(color(c1 if i%2 else c2));p.drawEllipse(QPointF(.5+.32*math.sin(TAU*y+i),y),.035,.075)
     p.restore()
+    if r['id']=='roof' or r['type']=='frame':
+        from .renderer import surface_path
+        architecture_lights(p,r,surface_path(data,r),t,mode,c1,c2)

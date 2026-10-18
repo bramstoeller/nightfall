@@ -7,7 +7,7 @@ data = [(str(root/'assets'), 'assets')]
 for name in ['house.json', 'house-day.png', 'house-night.png', 'layout.png']:
     data.append((str(root/'examples'/name), 'examples'))
 # The render cache and export manifest fingerprint these source files at runtime.
-for name in ['renderer.py', 'effects.py', 'animation.py', 'atmosphere.py', 'routes.py', 'tone.py']:
+for name in ['renderer.py', 'effects.py', 'animation.py', 'atmosphere.py', 'routes.py', 'tone.py', 'spectacle.py']:
     data.append((str(root/'nightfall'/name), 'nightfall'))
 
 a = Analysis(

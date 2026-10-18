@@ -39,7 +39,46 @@ MODES=[('Contour lines','wireframe'),('Filled regions','fills'),('Selection only
 
 class Projector(QWidget):
     def __init__(self,owner):
-        super().__init__();self.owner=owner;self.blacked_out=False;self.setWindowTitle('Nightfall — projector output');self.setCursor(Qt.BlankCursor)
+        super().__init__(None,Qt.Window|Qt.FramelessWindowHint)
+        self.owner=owner;self.blacked_out=False;self.target_screen=None
+        self.setWindowTitle('Nightfall — projector output');self.setCursor(Qt.BlankCursor)
+        self.geometry_timer=QTimer(self);self.geometry_timer.setSingleShot(True)
+        self.geometry_timer.timeout.connect(self.ensure_screen_geometry)
+        QApplication.instance().screenRemoved.connect(self.screen_removed)
+    def show_on(self,screen):
+        self.target_screen=screen
+        # Place the entire window before its first native show. Moving a window
+        # while it is already fullscreen can retain the previous monitor's size
+        # on Windows, especially when the monitors have different DPI settings.
+        if not self.isVisible() or not self.isFullScreen() or self.screen()!=screen or self.geometry()!=screen.geometry():
+            self.place_on_screen()
+        self.geometry_timer.start(0)
+        self.update()
+    def place_on_screen(self):
+        screen=self.target_screen
+        self.hide();self.setWindowState(Qt.WindowNoState)
+        # QWidget.setScreen also works before a native window exists; winId()
+        # would create that window on the laptop first.
+        self.setScreen(screen);self.setGeometry(screen.geometry())
+        self.showFullScreen()
+        handle=self.windowHandle()
+        if handle!=getattr(self,'_observed_window',None):
+            handle.screenChanged.connect(self.schedule_geometry_check)
+            self._observed_window=handle
+        self.raise_()
+    def schedule_geometry_check(self,*args):
+        if self.isVisible() and self.target_screen is not None:self.geometry_timer.start(0)
+    def resizeEvent(self,e):
+        super().resizeEvent(e)
+        self.schedule_geometry_check()
+    def ensure_screen_geometry(self):
+        screen=self.target_screen
+        if not self.isVisible() or screen not in QApplication.screens():return
+        # Recheck after queued native screen/DPI events have been processed.
+        if not self.isFullScreen() or self.screen()!=screen or self.geometry()!=screen.geometry():self.place_on_screen()
+    def screen_removed(self,screen):
+        if screen==self.target_screen:
+            self.hide();self.target_screen=None
     def paintEvent(self,e):
         p=QPainter(self);p.setRenderHint(QPainter.SmoothPixmapTransform);p.fillRect(self.rect(),Qt.black)
         im=self.owner.video_frame if self.owner.video.active or self.owner.live_mode else self.owner.frame
@@ -49,7 +88,11 @@ class Projector(QWidget):
     def keyPressEvent(self,e):
         if e.key()==Qt.Key_Escape:self.owner.stop_video();self.hide()
         else:self.owner.editor.keyPressEvent(e)
+    def showEvent(self,e):
+        if hasattr(self.owner,'projector_button'):self.owner.projector_button.setText('Projector on' if self.blacked_out else 'Projector off')
+        super().showEvent(e)
     def hideEvent(self,e):
+        self.geometry_timer.stop()
         if hasattr(self.owner,'projector_button'):self.owner.projector_button.setText('Projector on')
         super().hideEvent(e)
 
@@ -218,6 +261,8 @@ class MainWindow(QMainWindow):
         self.preview_check=QCheckBox('Preview on this screen only');self.preview_check.setChecked(self.preview_only)
         self.preview_check.setToolTip('Keep the video and FPS visible in the editor without opening fullscreen projector output.')
         self.preview_check.toggled.connect(self.set_preview_only);playback_bar.addWidget(self.preview_check)
+        display_bar=QHBoxLayout();layout.addLayout(display_bar)
+        display_bar.addWidget(QLabel('Projector display'));display_bar.addWidget(self.screens,1)
         self.editor.setParent(panel);layout.addWidget(self.editor,1)
         hint=QLabel('Click a corner or edge · arrows: 1 px · Shift: 10 px · Ctrl: ¼ px · Tab: next corner · Ctrl+Z: undo · wheel: zoom · 0: fit')
         layout.addWidget(hint);self.setCentralWidget(panel)
@@ -410,7 +455,9 @@ class MainWindow(QMainWindow):
         for label,value in MODES:self.mode_box.addItem(label,value)
         self.mode_box.currentIndexChanged.connect(self.change_mode);bottom.addWidget(self.mode_box)
         self.flash_check=QCheckBox('Bliksemflitsen');self.flash_check.setChecked(self.data.get('effects',{}).get('lightning_strength',.85)>0);self.flash_check.toggled.connect(self.set_flashes);bottom.addWidget(self.flash_check);self.photo_check=QCheckBox('Show reference on laptop');self.photo_check.toggled.connect(lambda _:self.editor.update());bottom.addWidget(self.photo_check)
-        self.screens=QComboBox();bottom.addWidget(self.screens,1);self.scan_screens();QApplication.instance().screenAdded.connect(self.scan_screens);QApplication.instance().screenRemoved.connect(self.scan_screens)
+        self.screens=QComboBox();self.screens.setToolTip('Choose the extended desktop display connected to the projector.')
+        bottom.addWidget(self.screens,1);self.scan_screens();self.screens.activated.connect(self.projector_screen_selected)
+        QApplication.instance().screenAdded.connect(self.scan_screens);QApplication.instance().screenRemoved.connect(self.scan_screens)
         for text,fn in [('Projector on',self.show_projector),('Projector black',self.blackout),('Save PNG',self.save_pattern)]:b=QPushButton(text);b.clicked.connect(fn);bottom.addWidget(b)
         row=QHBoxLayout();outer.addLayout(row);self.play_button=QPushButton('Play');self.play_button.clicked.connect(self.play);row.addWidget(self.play_button);self.seek=QSlider(Qt.Horizontal);self.seek.setRange(0,self.data['output']['fps']*120-1);self.seek.valueChanged.connect(self.seek_to);row.addWidget(self.seek,1);self.clock=QLabel('00:00 / 02:00');row.addWidget(self.clock)
         self.projector=Projector(self);self.timer=QTimer(self);self.timer.timeout.connect(self.tick);self.timer.setTimerType(Qt.PreciseTimer);self.timer.start(16);self.play_origin=time.monotonic();self.flash_check.setEnabled(not self.data.get('locked'));self.global_button.setEnabled(not self.data.get('locked'));self.tree_strength.setEnabled(not self.data.get('locked'));self.read_reference();self.rebuild_list();self.refresh();self.statusBar().showMessage('Draft mapping. Align on site, then save the final mapping.');
@@ -516,22 +563,34 @@ class MainWindow(QMainWindow):
                 x,y=self.current()['projector_points'][i];name+=f' · corner {i+1} · {x:.2f}, {y:.2f} px'
             self.simple_status.setText(name)
     def scan_screens(self,*args):
-        previous=self.screens.currentData();old_name=self.screens.currentText().split(' · ')[0] if previous is not None else None
+        previous=self.screens.currentData();screens=QApplication.screens()
+        for screen in screens:
+            if screen not in getattr(self,'_observed_screens',[]):
+                screen.geometryChanged.connect(self.scan_screens)
+                screen.logicalDotsPerInchChanged.connect(self.scan_screens)
+                screen.physicalDotsPerInchChanged.connect(self.scan_screens)
+        self._observed_screens=screens
         self.screens.clear()
-        for i,s in enumerate(QApplication.screens()):
-            self.screens.addItem(f'{i+1}: {s.name()} · {s.size().width()}×{s.size().height()} · scale {s.devicePixelRatio():g}',i)
-        candidates=[i for i,s in enumerate(QApplication.screens()) if s.size().width()==model.WIDTH and s.size().height()==model.HEIGHT and s.devicePixelRatio()==1]
-        old=next((i for i in range(self.screens.count()) if self.screens.itemText(i).split(' · ')[0]==old_name),None)
+        for i,s in enumerate(screens):
+            size=s.geometry().size();scale=s.devicePixelRatio()
+            self.screens.addItem(f'{i+1}: {s.name()} · {round(size.width()*scale)}×{round(size.height()*scale)} · scale {scale:g}',s)
+        external=[s for s in screens if s!=self.screen()]
+        candidates=[s for s in external or screens if s.size().width()==model.WIDTH and s.size().height()==model.HEIGHT and s.devicePixelRatio()==1]
+        preferred=previous if previous in screens else candidates[0] if len(candidates)==1 else external[0] if len(external)==1 else screens[0] if len(screens)==1 else None
         self.screens.setPlaceholderText('Choose the projector display')
-        self.screens.setCurrentIndex(old if old is not None else candidates[0] if len(candidates)==1 else 0 if self.screens.count()==1 else -1)
+        self.screens.setCurrentIndex(screens.index(preferred) if preferred is not None else -1)
+        if hasattr(self,'projector'):self.projector.ensure_screen_geometry()
+    def projector_screen_selected(self,*args):
+        if self.projector.isVisible():
+            screen=self.screens.currentData()
+            if screen in QApplication.screens():
+                self.projector.show_on(screen)
+                if hasattr(self,'projector_button'):self.projector_button.setText('Projector on' if self.projector.blacked_out else 'Projector off')
     def show_projector(self):
-        ss=QApplication.screens();i=self.screens.currentData()
-        if i is None and hasattr(self,'simple_status'):
-            i=next((j for j,s in enumerate(ss) if s!=QApplication.primaryScreen()),0)
-            self.screens.setCurrentIndex(i)
-        if i is None:self.note('Select the projector display from the display list first.');return
-        if i>=len(ss):self.scan_screens();return
-        s=ss[i];self.projector.winId();self.projector.windowHandle().setScreen(s);self.projector.move(s.geometry().topLeft());self.projector.showFullScreen();self.projector.update()
+        s=self.screens.currentData()
+        if s not in QApplication.screens():
+            self.scan_screens();self.note('Select the projector display from the display list first.');return
+        self.projector.show_on(s)
         self.projector.blacked_out=False
         if hasattr(self,'projector_button'):self.projector_button.setText('Projector off')
         if s.size().width()!=model.WIDTH or s.size().height()!=model.HEIGHT or s.devicePixelRatio()!=1:self.note('Set the projector display to 800×1280 at 100% scaling. The image is currently scaled to fit.')

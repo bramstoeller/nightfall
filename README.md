@@ -47,6 +47,8 @@ python -m venv .venv
 
 Set the projector's extended desktop to **800 × 1280**, portrait, at **100%** scaling. Open a mapping with **Open**, select a corner or contour, and drag to adjust it. The reference image stays on the laptop. The projector receives only the masked output.
 
+On Windows, use **Win+P → Extend** and choose the projector in **Projector display** in Nightfall. With one external display, Nightfall selects it automatically. The output covers the complete selected screen, including when it is rotated or uses a different display scale from the laptop. Windows handles the display rotation; no extra rotation is needed in Nightfall. Changing the display selection also moves an active projection to that screen.
+
 - Arrow keys move by 1 pixel; Shift moves by 10 pixels; Ctrl moves by ¼ pixel.
 - Tab selects the next corner. Ctrl+Z undoes an edit; Ctrl+S saves.
 - The wheel zooms, the middle button pans, and `0` fits the view.
@@ -73,6 +75,22 @@ Open an existing video directly, with a visible main-screen FPS counter:
 On Windows, use `nightfall.exe --preview-only --video path\to\video.mp4`. The player preserves the source video's cadence; it does not generate extra frames to turn 30 fps video into 60 fps. Live preview renders effects on demand and is measured separately from video playback.
 
 Rendering defaults to one or two CPU workers, drops to one when available memory is low or cannot be measured, and limits encoder threads. No dedicated GPU is required. An older computer may render slower than real time: render the shows first, then play the completed videos. A 60 fps file does not guarantee 60 displayed frames per second on every computer; use the FPS counter to check the target machine.
+
+## Characters and architectural animation
+
+Both two-minute exports now contain changing scenes with one-second dissolves. The children's show includes dancing skeletons, pumpkins, will-o-the-wisps, owls, light waves and a breathing house. The brave visitors' show adds bats, crawling spiders, local electric flicker, rotating patterns, fire and Cheshire. **Video** also offers each of the ten new scenes separately, plus a twelve-scene complete show.
+
+Character motion uses full five-second cycles evaluated at 60 fps: **300 rendered frames per cycle**. The image-generated textures supply the detail; articulated bones, shoulders and legs, squash, turns and ribbon deformation supply continuous in-between motion. The source images and exact prompts are documented in [character animation assets](assets/ANIMATION-PROMPTS.md).
+
+The saved mapping stays fixed. Breathing contours, traveling waves, rotating light and flickering chases are clipped inside the actual window frames, roof edge and bay trim. Rotating patterns on reflective paper or curtains also stay inside their mapped surfaces; untreated glass and exclusion masks remain black.
+
+To inspect the character loops outside the app:
+
+```bash
+python tools/preview_animations.py --frames
+```
+
+This creates a five-second 60 fps video contact sheet, six sets of 300 transparent PNGs and a ZIP under `dist/previews/expanded-effects/`.
 
 ## Offline export
 

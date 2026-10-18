@@ -5,10 +5,11 @@ from PySide6.QtCore import QRectF
 
 _cache={}
 
-def flight_route(shape,b,ratio,old=False,margin=7):
-    poly=shape.toFillPolygon();key=(tuple((round(q.x(),2),round(q.y(),2)) for q in poly),round(ratio,3),old,margin)
+def flight_route(shape,b,ratio,old=False,margin=7,width=None):
+    width=(48 if old else 40) if width is None else width
+    poly=shape.toFillPolygon();key=(tuple((round(q.x(),2),round(q.y(),2)) for q in poly),round(ratio,3),old,margin,width)
     if key in _cache:return _cache[key]
-    step=10;width=48 if old else 40;height=width*ratio
+    step=10;height=width*ratio
     clearance=margin+2  # extra room between the sampled route positions
     def fits(x,y):return shape.contains(QRectF(x-width*.6-clearance,y-height*.5-clearance,width*1.2+clearance*2,height*1.1+clearance*2))
     nodes={(x,y) for x in range(int(b.left())+step,int(b.right()),step) for y in range(int(b.top())+step,int(b.bottom()),step) if fits(x,y)}

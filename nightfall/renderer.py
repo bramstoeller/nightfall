@@ -10,16 +10,26 @@ from .atmosphere import texture,soft_colour,feather_mask,outset
 from .tone import brighten
 
 TAU=2*math.pi
-SHOW_SCENES=[('young',12),('aurora',0),('older',6),('embers',0),('shadowplay',0),('cheshire',0),('moonlight',0)]
+SHOW_SCENES={
+    'young':[(0,'young',0),(30,'bones',0),(42,'pumpkins',0),(54,'waves',0),
+             (66,'wisps',0),(78,'owls',0),(90,'haunted',0),(102,'bones',2),(114,'cheshire',3)],
+    'older':[(0,'older',0),(24,'bats',0),(36,'electric',0),(48,'spiders',0),
+             (60,'clockwork',0),(72,'embers',0),(84,'haunted',0),(96,'cheshire',1),(108,'shadowplay',0)],
+    'show':[(0,'bones',0),(10,'pumpkins',0),(20,'waves',0),(30,'wisps',0),
+            (40,'owls',0),(50,'haunted',0),(60,'bats',0),(70,'spiders',0),
+            (80,'clockwork',0),(90,'electric',0),(100,'embers',0),(110,'cheshire',1)],
+}
 
-def render_show(data,t):
-    """Seven eighteen-second scenes, overlapping for one second: 120 seconds."""
-    t=t%120;index=min(6,int(t/17));mode,offset=SHOW_SCENES[index]
-    current=render(data,t-index*17+offset,mode)
-    if index and t-index*17<1:
-        previous_mode,previous_offset=SHOW_SCENES[index-1]
-        result=render(data,t-(index-1)*17+previous_offset,previous_mode)
-        p=QPainter(result);u=t-index*17;p.setOpacity(smooth(u));p.drawImage(0,0,current);p.end();current=result
+def render_show(data,t,show='show'):
+    """Two-minute programmes with one-second dissolves and a clean loop seam."""
+    t=t%120;scenes=SHOW_SCENES[show]
+    index=max(i for i,(start,_,_) in enumerate(scenes) if start<=t)
+    start,mode,offset=scenes[index]
+    current=render_scene(data,t-start+offset,mode)
+    if index and t-start<1:
+        previous_start,previous_mode,previous_offset=scenes[index-1]
+        result=render_scene(data,t-previous_start+previous_offset,previous_mode)
+        p=QPainter(result);p.setOpacity(smooth(t-start));p.drawImage(0,0,current);p.end();current=result
     fade=min(smooth(t/.8),smooth((120-t)/.8))
     if fade<1:
         result=QImage(WIDTH,HEIGHT,QImage.Format_RGB32);result.fill(Qt.black)
@@ -270,7 +280,10 @@ def figure_shape(data,shape):
     return shape
 
 def render(data,t=0,mode='wireframe',selected=None):
-    if mode=='show':return render_show(data,t)
+    if mode in SHOW_SCENES:return render_show(data,t,mode)
+    return render_scene(data,t,mode,selected)
+
+def render_scene(data,t=0,mode='wireframe',selected=None):
     """Render a native-resolution QImage; nothing from the editor enters output."""
     im=QImage(WIDTH,HEIGHT,QImage.Format_RGB32);im.fill(Qt.black)
     p=QPainter(im);p.setRenderHints(QPainter.Antialiasing|QPainter.SmoothPixmapTransform)
@@ -318,7 +331,6 @@ def render(data,t=0,mode='wireframe',selected=None):
             wall_layer=QImage(wall_rect.size(),QImage.Format_ARGB32_Premultiplied);wall_layer.fill(Qt.transparent)
             p=QPainter(wall_layer);p.setRenderHints(QPainter.Antialiasing|QPainter.SmoothPixmapTransform)
             p.translate(-wall_rect.x(),-wall_rect.y())
-        elif r['id']=='roof':paint_shape=outset(shape,4)
         p.save();p.setClipPath(paint_shape);gain=r.get('gain',1);p.setOpacity(gain)
         x,y,w,h=b.x(),b.y(),b.width(),b.height()
         if r['id']=='facade':
@@ -334,7 +346,7 @@ def render(data,t=0,mode='wireframe',selected=None):
                 p.setOpacity(gain*.8);stars(p,b,t,38,'#ffe89a')
         elif r['type']=='edge':
             phase=t%30;a=sum(cycle(t,s,3) for s in [11,41,71,101]);p.setOpacity(gain*a);p.fillRect(QRectF(x+clamp((phase-11)/3)*w-12,y,24,h),QColor('#ba91dd' if old else '#ffca80'))
-        elif r['type']=='stage':
+        elif r['type']=='stage' and mode in {'young','older','moonlight','shadowplay'}:
             # The bottom edge is the feet/support line on the bay platform.
             p.setTransform(uv_transform(r['projector_points']),True)
             dance=math.sin(TAU*t/2);hop=.045*(1-math.cos(TAU*t))
@@ -376,7 +388,6 @@ def render(data,t=0,mode='wireframe',selected=None):
             if r.get('role')=='group':continue
             if r['id']=='roof' or r.get('shape')=='ellipse':
                 glow=surface_path(data,r)
-                if r['id']=='roof':glow=outset(glow,4)
                 soft_colour(p,glow,STYLES.get(mode,('', '#fff2dc'))[1])
             elif r['type']=='frame' and r.get('enabled',True):
                 p.setOpacity(data.get('effects',{}).get('architecture_strength',.10)*r.get('gain',1));soft_colour(p,surface_path(data,r),'#fff2dc');p.setOpacity(data.get('effects',{}).get('architecture_strength',.10))
