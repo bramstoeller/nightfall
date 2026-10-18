@@ -12,7 +12,7 @@ from nightfall.renderer import render
 from nightfall.effects import STYLES
 from nightfall.media_tools import executable
 from nightfall.parallel_render import FrameRenderer
-from nightfall.render_cache import SOURCES
+from nightfall.render_cache import SOURCES, folder as cache_folder
 
 class RenderCancelled(Exception):
     pass
@@ -72,7 +72,7 @@ def main():
             render_workers=renderer.workers
             for show in ['young','older'] if args.show=='both' else [args.show]:encode(data,show,args.out/f'halloween-{show}-{model.WIDTH}x{model.HEIGHT}.mp4',args.seconds,args.overwrite,cancel_file=args.cancel_file,frame_renderer=renderer)
     raw=(args.out/'mapping-used.json').read_bytes();manifest={'mapping_sha256':hashlib.sha256(raw).hexdigest(),'resolution':[model.WIDTH,model.HEIGHT],'fps':data['output']['fps'],'duration':args.seconds,'full_loop':args.seconds==120,'renderer':'nightfall-coloured-smoke-5','renderer_sha256':hashlib.sha256((model.ROOT/'nightfall/renderer.py').read_bytes()).hexdigest(),'animation_sha256':hashlib.sha256((model.ROOT/'nightfall/animation.py').read_bytes()).hexdigest(),'asset_sha256':{str(p.relative_to(model.ROOT/'assets')):hashlib.sha256(p.read_bytes()).hexdigest() for p in (model.ROOT/'assets').rglob('*.png')},'files':[n for n in names if n!='render-manifest.json']}
-    manifest.update(renderer='nightfall-flowing-smoke-cpu',cpu_render_processes=render_workers,encoder='libx264',source_sha256={name:hashlib.sha256((model.ROOT/'nightfall'/name).read_bytes()).hexdigest() for name in SOURCES})
+    manifest.update(renderer='nightfall-flowing-smoke-cpu',cpu_render_processes=render_workers,encoder='libx264',cache_key=cache_folder(data).name,source_sha256={name:hashlib.sha256((model.ROOT/'nightfall'/name).read_bytes()).hexdigest() for name in SOURCES})
     (args.out/'render-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n');print('Keep the mapping and matching alignment pattern with this render.',flush=True)
 
 def run():

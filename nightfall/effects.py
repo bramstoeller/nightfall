@@ -6,12 +6,13 @@ from .model import region
 from .animation import skeleton_frame
 from .atmosphere import clouds,curtain_fire,soft_colour,inset
 from .spectacle import STYLES as SPECTACLE_STYLES, draw_spectacle, architecture_lights
+from .routes import performance_slots,performer_pose
 
 TAU=2*math.pi
 SMOKE_STRENGTH=.5
 STYLES={
-    'young':('Children’s show · 2 minutes','#fff0ad','#c0f9ff','Ghosts, dancing skeletons, pumpkins, owls, light waves and a breathing house.'),
-    'older':('Brave visitors’ show · 2 minutes','#397bff','#a644ff','Ghost mist, bats, spiders, electric frames, clockwork, fire and Cheshire.'),
+    'young':('Children 4–8 · 2 minutes','#fff0ad','#c0f9ff','Friendly dancing skeletons, smiling pumpkins, magic lights, owls and a playful house.'),
+    'older':('Children 8–12 · 2 minutes','#74a6ff','#ca96ff','Mysterious spirits, bats, a large crawling spider, haunted frames and disappearing Cheshire.'),
     'aurora':('Green magic smoke','#32ec78','#13cadf','Green smoke, yellow-green fireflies and a breathing tree.'),
     'embers':('Red fire glow','#ff3824','#ffac20','Red-orange clouds, glowing embers and curtain flames.'),
     'moonlight':('Blue moon mist','#46aaff','#7449ed','Calm blue clouds with a soft purple glow.'),
@@ -86,20 +87,18 @@ def comet_swarm(p,b,t,c1,c2,count=38):
 
 def dancer(p,data,t):
     # Alternate the dancer and cat on their shared patch of clear brickwork.
-    visible=envelope(t,1,14,40)
+    visible=envelope(t,1,9,40)
     if visible<.001 or p.opacity()<.001:return
-    attic=region(data,'attic')['projector_points'];right=region(data,'right')['projector_points']
-    top=max(q[1] for q in attic)+8;bottom=min(q[1] for q in right)-8
-    height=min(150,max(40,bottom-top))
-    centre=sum(q[0] for q in attic)/4
-    p.save();p.setOpacity(p.opacity()*visible)
+    from .renderer import facade_cast
+    safe,slots=facade_cast(data);slot=slots[0]
+    if slot is None:return
+    area,_=performer_pose(slot,t);height=area.height()*.9;width=height*480/550
+    rect=QRectF(area.center().x()-width/2,area.center().y()-height/2,width,height)
+    p.save();p.setClipPath(safe,Qt.IntersectClip);p.setOpacity(p.opacity()*visible)
     actor=skeleton_frame(t)
-    width=height*480/550
-    x=centre-width/2+12*math.sin(TAU*t/2)
-    hop=4*(1-math.cos(TAU*t))
-    p.drawImage(QRectF(x,bottom-height-hop,width,height),actor,QRectF(0,100,480,550))
+    p.drawImage(rect,actor,QRectF(0,100,480,550))
     p.setCompositionMode(QPainter.CompositionMode_Screen);p.setOpacity(p.opacity()*.65)
-    p.drawImage(QRectF(x,bottom-height-hop,width,height),actor,QRectF(0,100,480,550))
+    p.drawImage(rect,actor,QRectF(0,100,480,550))
     p.restore()
 
 def bat(p,x,y,size,t,phase,c):
@@ -115,14 +114,15 @@ def bat(p,x,y,size,t,phase,c):
     p.restore()
 
 def bats(p,b,t,c,shape=None):
-    from .routes import flight_route,flight_position
-    route=flight_route(shape,b,.6,False,8) if shape is not None else None
+    if shape is not None:
+        for i,slot in enumerate(performance_slots(shape,b,[(144,112,3,4,3)]*2)):
+            if slot is None:continue
+            rect,_=performer_pose(slot,t)
+            bat(p,rect.center().x(),rect.center().y(),rect.width()*.38,t,i,c)
+        return
     for i in range(5):
         a=TAU*t/[12,15,20][i%3]+i*1.7
         x=b.x()+b.width()*(.5+.39*math.sin(a));y=b.y()+b.height()*(.4+.24*math.sin(a*2+i))
-        if shape is not None:
-            if route is None:continue
-            x,y,_=flight_position(route,t+i*3,i)
         bat(p,x,y,10+i%3*4,t,i,c)
 
 def spider(p,data,t,c):
@@ -260,11 +260,11 @@ def _cheshire_layers(p,b,t):
     p.setOpacity(base*grin);p.drawImage(target,cat_image('mouth',size));p.restore()
 
 
-def draw_extras(p,data,r,t,mode,shape,b):
+def draw_extras(p,data,r,t,mode,shape,b,actor_strength=1):
     if mode not in STYLES:return
     _,c1,c2,_=STYLES[mode]
     if mode in SPECTACLE_STYLES:
-        draw_spectacle(p,data,r,t,mode,shape,b,c1,c2);return
+        draw_spectacle(p,data,r,t,mode,shape,b,c1,c2,actor_strength);return
     p.save();gain=p.opacity()
     if r['id']=='facade':
         p.setCompositionMode(QPainter.CompositionMode_Screen)
@@ -275,18 +275,20 @@ def draw_extras(p,data,r,t,mode,shape,b):
         elif mode=='embers':p.setOpacity(gain*.8);comet_swarm(p,b,t,c1,c2,65)
         elif mode=='shadowplay':
             from .renderer import facade_shape,figure_shape
-            p.setOpacity(gain*.9);bats(p,b,t,c1,figure_shape(data,facade_shape(data,r)))
-        if mode=='young':p.setOpacity(gain);dancer(p,data,t);fireflies(p,shape,b,t,22)
+            p.setOpacity(gain*.9*actor_strength);bats(p,b,t,c1,figure_shape(data,facade_shape(data,r)))
+        if mode=='young':
+            p.setOpacity(gain*actor_strength);dancer(p,data,t)
+            p.setOpacity(gain);fireflies(p,shape,b,t,10)
         if mode in {'cheshire','young','older'}:
             # The clear brickwork between attic and upper windows is the stage.
-            attic=region(data,'attic')['projector_points'];right=region(data,'right')['projector_points']
-            top=max(q[1] for q in attic)+14;bottom=min(q[1] for q in right)-14
-            height=max(20,bottom-top);width=min(190,height*1.25)
-            centre=sum(q[0] for q in attic)/len(attic)
+            from .renderer import facade_cast
+            safe,slots=facade_cast(data);slot=slots[0]
             cat_time=t if mode=='cheshire' else t-18 if mode=='young' else t-8
             appearance=1 if mode=='cheshire' else envelope(t,18 if mode=='young' else 8,20,40)
-            p.setOpacity(gain*appearance);cheshire(p,QRectF(centre-width/2,top,width,height),cat_time)
-        if mode in {'older','shadowplay'}:p.setOpacity(gain*.85);spider(p,data,t,c2)
+            if slot is not None:
+                area,_=performer_pose(slot,t)
+                p.save();p.setClipPath(safe,Qt.IntersectClip)
+                p.setOpacity(gain*appearance*actor_strength);cheshire(p,area,cat_time);p.restore()
     elif r['id']=='roof' or r['id'].startswith('bay-trim'):
         pulse=.55+.35*math.sin(TAU*t/12+b.x()*.01)
         soft_colour(p,shape,c1,pulse)

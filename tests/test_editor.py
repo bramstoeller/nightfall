@@ -38,7 +38,7 @@ class PolygonTests(unittest.TestCase):
     def test_dancer_changes_pose_and_repeats(self):
         poses=[bytes(skeleton_frame(t).constBits()) for t in [0,.25,.5,.75]]
         self.assertEqual(len(set(poses)),4)
-        self.assertEqual(bytes(skeleton_frame(0).constBits()),bytes(skeleton_frame(2).constBits()))
+        self.assertEqual(bytes(skeleton_frame(0).constBits()),bytes(skeleton_frame(5).constBits()))
         # Changing pose must be visible in the mapped stage itself.
         only_stage=copy.deepcopy(self.data)
         for r in only_stage['regions']:r['enabled']=r['type']=='stage'

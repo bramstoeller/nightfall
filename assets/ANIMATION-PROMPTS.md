@@ -4,7 +4,11 @@ The built-in image generation tool created these RGBA source assets for Nightfal
 
 `nightfall/spectacle.py` builds continuous five-second motion from the source textures: separate shoulder pivots and deforming wings for bats and owls; nine articulated puppet parts for skeletons; eight jointed legs for spiders; squash, tilt and a wink for pumpkins; and flowing ribbon deformation for wisps. Every cycle is evaluated at 60 fps, giving 300 rendered frames. Distinct actors use phase offsets and dance variants. The runtime preserves physical house geometry and clips architectural light to the original surface paths.
 
-`python tools/preview_animations.py --frames` exports all six cycles as 1,800 transparent 256×256 PNGs, a ZIP and a five-second 60 fps video contact sheet. These generated previews live under ignored `dist/`; the application bundles the six source PNGs below and the animation code.
+`nightfall/animation.py` also animates the original `young-skeleton.png` and `young-ghost.png` over five seconds. The skeleton uses jointed limbs, gestures, a head nod and steps. The cloth ghost uses a continuous mesh for independent sleeve waves and rippling fabric, floating motion and a wink. Its mesh avoids seams between moving cloth pieces.
+
+`python tools/preview_animations.py --frames` exports all eight cycles as 2,400 transparent 256×256 PNGs, a ZIP and a five-second 60 fps video contact sheet. These generated previews live under ignored `dist/`; the application bundles the source PNGs and the animation code.
+
+Projected characters use one fixed viewport covering every pose and variant, with their source aspect ratio preserved. Additional tiny clones are omitted when the real wall leaves insufficient room. Architectural accents use broad light within the original physical masks.
 
 ## Prompts
 

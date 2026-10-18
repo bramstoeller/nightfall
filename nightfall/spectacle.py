@@ -3,18 +3,20 @@ import math
 from functools import lru_cache
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import (QColor, QImage, QPainter, QPainterPath, QPen,
+from PySide6.QtGui import (QColor, QImage, QPainter, QPainterPath, QPen, QRadialGradient,
                           QPolygonF, QTransform)
 from .model import ROOT
-from .atmosphere import shape_key, soft_colour
-from .routes import flight_route, flight_position
+from .atmosphere import soft_colour
+from .routes import performance_slots, performer_pose
 
 TAU=2*math.pi
 ACTOR_FPS=60
 ACTOR_SECONDS=5
 ACTOR_FRAMES=ACTOR_FPS*ACTOR_SECONDS
 STYLES={
-    'bones':('Skeleton dance troupe','#ffcb6e','#60f7df','A full five-second dance, heel kicks, waves and a chorus of skeletons.'),
+    'young-skeletons':('Friendly skeleton dance · 4–8','#ffe6a6','#8af8e7','The original smiling skeleton waves, nods and steps through a five-second dance.'),
+    'young-ghosts':('Friendly ghost greeting · 4–8','#fff5d8','#98eaff','The original cloth ghost floats, waves its sleeves, ripples and winks.'),
+    'bones':('Skeleton dance','#ffdf99','#84ffe8','A large friendly skeleton waves, heel-kicks and dances in five-second phrases.'),
     'bats':('Vampire bat ballet','#885cff','#ef6cde','Articulated wings carry glowing bats around the real windows.'),
     'pumpkins':('Pumpkin parade','#ff8b22','#b3ed52','Floating jack-o-lanterns wink, bob and squash to the beat.'),
     'spiders':('Moon spiders','#b350ff','#ffac4b','Eight jointed legs, hanging threads and spiders exploring the brickwork.'),
@@ -26,6 +28,12 @@ STYLES={
     'electric':('Haunted electric frames','#ad83ff','#59e8ff','Local flicker, chasing sparks and alternating illuminated edges.'),
 }
 ATLAS_NAMES={name:f'{name}-atlas-v1' for name in ['bat','pumpkin','spider','wisp','owl']}
+# Union of every pose and all three variants, with a transparent safety border.
+# These fixed source viewports preserve each character's original proportions.
+ACTOR_BOUNDS={'skeleton':(60,6,136,212),'bat':(10,39,223,200),
+              'owl':(18,58,216,173),'pumpkin':(22,16,196,208),
+              'spider':(28,36,202,176),'wisp':(11,27,224,205),
+              'young-skeleton':(32,14,192,228),'young-ghost':(32,14,192,228)}
 
 
 def colour(value,alpha=255):
@@ -147,7 +155,15 @@ def actor_frame(kind,index,variant=0):
     t=(index%ACTOR_FRAMES)/ACTOR_FPS;a=TAU*t/5
     result=QImage(256,256,QImage.Format_ARGB32_Premultiplied);result.fill(Qt.transparent)
     p=QPainter(result);p.setRenderHints(QPainter.Antialiasing|QPainter.SmoothPixmapTransform)
-    p.translate(128,128);p.scale(.9,.9);p.translate(-128,-128)
+    if kind in {'young-ghost','young-skeleton'}:
+        from .animation import skeleton_frame,young_ghost_frame
+        source=(young_ghost_frame if kind=='young-ghost' else skeleton_frame)(t)
+        bounds=QRectF(47,70,305,365) if kind=='young-ghost' else QRectF(24,102,435,529)
+        scale=220/bounds.height();w,h=bounds.width()*scale,bounds.height()*scale
+        p.drawImage(QRectF(128-w/2,128-h/2,w,h),source,bounds);p.end();return result
+    # Room for the most extended pose in every variant, including raised hands
+    # and wing tips. The stage drawing trims only the common transparent border.
+    p.translate(128,128);p.scale(.8,.8);p.translate(-128,-128)
     if kind=='skeleton':skeleton(p,t,variant)
     elif kind in {'bat','owl'}:flyer(p,kind,t,variant)
     elif kind=='spider':
@@ -172,43 +188,36 @@ def actor_frame(kind,index,variant=0):
 
 def draw_actor(p,kind,t,rect,variant=0,rotation=0):
     image=actor_frame(kind,round(t*ACTOR_FPS)%ACTOR_FRAMES,variant)
+    source=QRectF(*ACTOR_BOUNDS[kind])
+    scale=min(rect.width()/source.width(),rect.height()/source.height())
+    w,h=source.width()*scale,source.height()*scale
     p.save();p.translate(rect.center());p.rotate(rotation)
-    p.drawImage(QRectF(-rect.width()/2,-rect.height()/2,rect.width(),rect.height()),image);p.restore()
-
-
-_stages={}
+    # One constant viewport per whole animation keeps proportions and the
+    # position stable as wings close or limbs move; no per-frame auto-cropping.
+    p.drawImage(QRectF(-w/2,-h/2,w,h),image,source);p.restore()
 
 
 def dance_stages(shape,b):
-    key=shape_key(shape)
-    if key in _stages:return _stages[key]
-    width=96
-    candidates=[QRectF(x-width/2,y-width/2,width,width) for x in range(round(b.left())+60,round(b.right())-45,24)
-                for y in range(round(b.top())+80,round(b.bottom())-50,24)]
-    candidates=[r for r in candidates if shape.contains(r.adjusted(-6,-6,6,6))]
-    chosen=[]
-    for u,v in [(.48,.47),(.7,.72),(.55,.83)]:
-        target=QPointF(b.x()+u*b.width(),b.y()+v*b.height())
-        options=[r for r in candidates if all(not r.adjusted(-8,-8,8,8).intersects(q) for q in chosen)]
-        if options:chosen.append(min(options,key=lambda r:math.hypot(r.center().x()-target.x(),r.center().y()-target.y())))
-    if len(_stages)>24:_stages.clear()
-    _stages[key]=chosen;return chosen
+    return [performer_pose(slot,0)[0] for slot in character_slots(shape,b,'skeleton',3) if slot is not None]
+
+
+def character_slots(shape,b,kind,count):
+    width,height=(110,158) if kind in {'skeleton','young-skeleton','young-ghost'} else (150,130) if kind in {'bat','owl'} else (144,144)
+    # Large readable silhouettes suit distant brickwork. A cramped patch omits
+    # another performer instead of turning it into a tiny floating copy.
+    return performance_slots(shape,b,[(width,height,3,4,0 if kind=='skeleton' else 3)]*count)
 
 
 def character_swarm(p,shape,b,t,kind,count):
     p.save();p.setClipPath(shape,Qt.IntersectClip)
-    if kind=='skeleton':
-        for i,rect in enumerate(dance_stages(shape,b)):draw_actor(p,kind,t+i*.35,rect,i)
-    else:
-        for i in range(count):
-            width=(36 if kind=='spider' else 64)+(i%3)*8
-            route=flight_route(shape,b,1,False,8,width=width)
-            if route is None:continue
-            x,y,_=flight_position(route,t+i*2.2,i)
-            if kind=='spider':
-                p.setPen(QPen(colour('#ba9de4',95),.65));p.drawLine(QPointF(x,b.top()),QPointF(x,y))
-            turn=(12 if kind in {'bat','owl'} else 5)*math.sin(TAU*t/10+i)
-            draw_actor(p,kind,t+i*.4,QRectF(x-width/2,y-width/2,width,width),i%3,turn)
+    for i,slot in enumerate(character_slots(shape,b,kind,count)):
+        if slot is None:continue
+        rect,turn=performer_pose(slot,t)
+        if kind=='spider':
+            # Keep a thread local to its spider's room as well.
+            p.setPen(QPen(colour('#dfbcff',180),2))
+            p.drawLine(QPointF(rect.center().x(),slot.envelope[1]),rect.center())
+        draw_actor(p,kind,t+i*.4,rect,i%3,turn)
     p.restore()
 
 
@@ -241,17 +250,17 @@ def architecture_lights(p,r,shape,t,mode,c1,c2):
     route,length,samples=guide(r);b=shape.boundingRect();phase=(sum(ord(c) for c in r['id'])%31)/5
     motion={'haunted':'breath','waves':'wave','clockwork':'rotate','electric':'flicker'}.get(mode)
     if motion is None:motion=['chase','breath','wave'][int(t//10)%3]
-    soft_colour(p,shape,c2,.16)
+    soft_colour(p,shape,c2,.32)
     if motion=='breath':
         breath=.5-.5*math.cos(TAU*t/5+phase)
-        p.setOpacity(base*(.22+.5*breath));p.fillPath(shape,colour(c1,130))
-        for i in range(5):
-            scale=1-(i+breath)*.008
+        p.setOpacity(base*(.45+.5*breath));p.fillPath(shape,colour(c1,210))
+        for i in range(2):
+            scale=1-(i+breath)*.012
             tr=QTransform();tr.translate(b.center().x(),b.center().y());tr.scale(scale,scale);tr.translate(-b.center().x(),-b.center().y())
-            p.setPen(QPen(colour(c1 if i%2 else c2,210),1.25));p.setBrush(Qt.NoBrush);p.drawPath(tr.map(route))
+            p.setPen(QPen(colour(c1 if i%2 else c2,235),3));p.setBrush(Qt.NoBrush);p.drawPath(tr.map(route))
     elif motion=='wave':
         p.setBrush(Qt.NoBrush)
-        for strand in range(3):
+        for strand in range(2):
             wave=QPainterPath()
             for i,q in enumerate(samples):
                 prev=samples[max(0,i-1)];nxt=samples[min(len(samples)-1,i+1)]
@@ -261,20 +270,20 @@ def architecture_lights(p,r,shape,t,mode,c1,c2):
                 if i==0:wave.moveTo(point)
                 else:wave.lineTo(point)
             c=c1 if strand%2 else c2
-            p.setPen(QPen(colour(c,45),5));p.drawPath(wave)
-            p.setPen(QPen(colour(c,205),1.2));p.drawPath(wave)
+            p.setPen(QPen(colour(c,75),7));p.drawPath(wave)
+            p.setPen(QPen(colour(c,235),3));p.drawPath(wave)
     elif motion=='rotate':
         p.translate(b.center());p.rotate(360*t/10+phase*30)
         radius=math.hypot(b.width(),b.height())*.65
-        for i in range(12):
-            p.rotate(30);p.setPen(QPen(colour(c1 if i%2 else c2,165),max(2,b.width()*.05)))
+        for i in range(6):
+            p.rotate(60);p.setPen(QPen(colour(c1 if i%2 else c2,220),max(4,b.width()*.10)))
             p.drawLine(QPointF(0,0),QPointF(radius,0))
     else:
         for i,q in enumerate(samples):
             travel=(i/max(1,len(samples)-1)-t/5+phase)%1
-            brightness=(.5+.5*math.cos(TAU*travel*3))**8
-            if motion=='flicker':brightness*=.18+.82*max(0,math.sin(TAU*t*2+i*.7+phase))**2
-            p.setOpacity(base*brightness);p.setPen(QPen(colour(c1 if (i//5)%2 else c2),4,Qt.SolidLine,Qt.RoundCap))
+            brightness=.20+.80*(.5+.5*math.cos(TAU*travel*2))**3
+            if motion=='flicker':brightness*=.3+.7*max(0,math.sin(TAU*t*.65+i*.12+phase))**2
+            p.setOpacity(base*brightness);p.setPen(QPen(colour(c1 if (i//5)%2 else c2),7,Qt.SolidLine,Qt.RoundCap))
             if i:p.drawLine(samples[i-1],q)
     p.restore()
 
@@ -282,41 +291,31 @@ def architecture_lights(p,r,shape,t,mode,c1,c2):
 def panel_lights(p,r,t,mode,c1,c2):
     from .renderer import uv_transform
     p.save();p.setTransform(uv_transform(r['projector_points']),True)
-    p.setPen(QPen(colour(c2,190),.014));p.setBrush(Qt.NoBrush)
+    p.setPen(QPen(colour(c2,230),.06));p.setBrush(Qt.NoBrush)
     if mode=='clockwork':
         p.translate(.5,.5);p.rotate(360*t/10)
-        for i in range(6):
-            size=.13+i*.105;p.rotate(15);p.drawRect(QRectF(-size/2,-size/2,size,size))
+        for i in range(2):
+            size=.35+i*.40;p.rotate(25);p.drawRect(QRectF(-size/2,-size/2,size,size))
     elif mode=='haunted':
-        for i in range(5):
-            size=.18+i*.12+.06*math.sin(TAU*t/5)
-            p.setPen(QPen(colour(c1 if i%2 else c2,180),.014));p.drawRect(QRectF(.5-size/2,.5-size/2,size,size))
+        size=.65+.18*math.sin(TAU*t/5)
+        p.setBrush(colour(c1,185));p.drawRoundedRect(QRectF(.5-size/2,.5-size/2,size,size),.1,.1)
     else:
-        for j in range(5):
-            path=QPainterPath()
-            for i in range(33):
-                x=i/32;y=.12+j*.18+.045*math.sin(TAU*x*2-TAU*t/5+j)
-                if i==0:path.moveTo(x,y)
-                else:path.lineTo(x,y)
-            p.setPen(QPen(colour(c1 if j%2 else c2,180),.012));p.drawPath(path)
+        centre=QPointF(.5+.2*math.sin(TAU*t/10),.5+.18*math.cos(TAU*t/10))
+        glow=QRadialGradient(centre,.7);glow.setColorAt(0,colour(c1,240));glow.setColorAt(1,colour(c2,40))
+        p.fillRect(QRectF(0,0,1,1),glow)
     p.restore()
 
 
-def draw_spectacle(p,data,r,t,mode,shape,b,c1,c2):
+def draw_spectacle(p,data,r,t,mode,shape,b,c1,c2,actor_strength=1):
     from .renderer import facade_shape, figure_shape, surface_path
     p.save();p.setClipPath(surface_path(data,r),Qt.IntersectClip)
     if r['id']=='facade':
         safe=figure_shape(data,facade_shape(data,r));p.setClipPath(safe,Qt.IntersectClip)
-        kind,count={'bones':('skeleton',3),'bats':('bat',7),'pumpkins':('pumpkin',4),
-                    'spiders':('spider',5),'wisps':('wisp',4),'owls':('owl',3)}.get(mode,(None,0))
-        if kind:character_swarm(p,safe,b,t,kind,count)
-        else:
-            # Geometry scenes send soft light waves across the brickwork. All
-            # windows, the tree and foreground remain physical occluders.
-            p.setPen(Qt.NoPen)
-            for i in range(8):
-                y=b.top()+((t/10+i/8)%1)*b.height()
-                p.setBrush(colour(c1 if i%2 else c2,25));p.drawRect(QRectF(b.left(),y,b.width(),7))
+        kind,count={'young-skeletons':('young-skeleton',2),'young-ghosts':('young-ghost',2),
+                    'bones':('skeleton',3),'bats':('bat',4),'pumpkins':('pumpkin',3),
+                    'spiders':('spider',4),'wisps':('wisp',3),'owls':('owl',3)}.get(mode,(None,0))
+        if kind and actor_strength>.001:
+            p.setOpacity(p.opacity()*actor_strength);character_swarm(p,safe,b,t,kind,count)
     elif r['id']=='roof' or r['type'] in {'frame','edge'}:
         architecture_lights(p,r,surface_path(data,r),t,mode,c1,c2)
     elif r['type']=='curtain' or (r['type']=='window' and r.get('paper_screen',False)):

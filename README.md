@@ -55,6 +55,9 @@ On Windows, use **Win+P → Extend** and choose the projector in **Projector dis
 - **Reference: day/night** switches reference images without changing projector geometry.
 - **Projector on** enables output; clicking it again blacks out the projector. Esc hides the output.
 - **Video → Open video file…** plays an existing MP4. **Preview on this screen only** keeps playback and the FPS readout on the main screen without opening fullscreen projector output. The large readout reports frames actually painted by the app over a two-second window; it does not measure the monitor refresh rate.
+- Choose **Video player → VLC · projector** to play finished MP4s directly in VLC. Windows packages select VLC by default. Nightfall finds installed or portable VLC; **Choose VLC…** locates another copy. VLC is a separate optional installation, available from [VideoLAN](https://www.videolan.org/vlc/).
+- VLC opens on the selected **Projector display**, fullscreen and looping, with titles and controls hidden. Windows supplies portrait rotation; the video keeps its aspect ratio. Nightfall's FPS counter applies to internal playback and previews; it does not measure external VLC.
+- **Stop video**, closing Nightfall, or disconnecting the projector stops the VLC instance that Nightfall started. Other VLC sessions keep running. **Projector off** stops VLC and leaves a black output; **Projector on** restarts the video from the beginning. Changing the projector display also restarts playback on that display.
 - **Video** also starts an effect or the Halloween tour. The tour changes from the children's show to the braver visitors' show at the configured local time.
 - **Render video** exports both two-minute shows from the current mapping. It becomes **Stop render** while rendering. Completed videos remain intact when a render is cancelled.
 
@@ -63,6 +66,8 @@ Smoke uses a fixed 50% strength. The old lamp-post placeholder is removed when o
 Glass, the bay front and exclusion masks stay black as configured. A window needs a reflective screen before it can receive projection. Save your aligned mapping and matching `.alignment.png` together. Reference images are embedded when a loaded project is saved, so personal projects remain portable.
 
 Packaged builds keep render caches in `%LOCALAPPDATA%/Nightfall/renders` on Windows and `${XDG_DATA_HOME:-~/.local/share}/Nightfall/renders` on Linux. Source runs use `renders/` in the project directory.
+
+Completed shows can also travel in a `videos/` folder beside the saved house mapping. Keep their `render-manifest.json`: Nightfall automatically uses these videos, including for the scheduled tour, when the geometry, effects, source code and assets match. Editing the map invalidates that match.
 
 ## Test playback on this computer
 
@@ -78,7 +83,9 @@ Rendering defaults to one or two CPU workers, drops to one when available memory
 
 ## Characters and architectural animation
 
-Both two-minute exports now contain changing scenes with one-second dissolves. The children's show includes dancing skeletons, pumpkins, will-o-the-wisps, owls, light waves and a breathing house. The brave visitors' show adds bats, crawling spiders, local electric flicker, rotating patterns, fire and Cheshire. **Video** also offers each of the ten new scenes separately, plus a twelve-scene complete show.
+Both two-minute exports contain changing scenes with one-second background dissolves. The 4–8 show includes the original friendly young skeleton and cloth ghost, pumpkins, will-o-the-wisps, owls, light waves and a breathing house. The 8–12 show adds mysterious spirits, bats, a large spider, local flicker, clockwork windows, fire and Cheshire. **Video** also offers all twelve new scenes separately, plus a twelve-scene complete show.
+
+Each performer gets a separate clear patch of brickwork with enough room for its complete pose, tilt and movement. Large silhouettes, fixed proportions and broad bright architectural accents suit distant projection on dim brickwork. A cramped wall omits additional performers; the background tree is subdued. Window, tree and exclusion clearance are checked throughout the motion. During a scene change, the outgoing cast fades out before the next cast appears, while background colours dissolve smoothly. Loose horizontal light bands are removed.
 
 Character motion uses full five-second cycles evaluated at 60 fps: **300 rendered frames per cycle**. The image-generated textures supply the detail; articulated bones, shoulders and legs, squash, turns and ribbon deformation supply continuous in-between motion. The source images and exact prompts are documented in [character animation assets](assets/ANIMATION-PROMPTS.md).
 
@@ -90,7 +97,7 @@ To inspect the character loops outside the app:
 python tools/preview_animations.py --frames
 ```
 
-This creates a five-second 60 fps video contact sheet, six sets of 300 transparent PNGs and a ZIP under `dist/previews/expanded-effects/`.
+This creates a five-second 60 fps video contact sheet, eight sets of 300 transparent PNGs and a ZIP under `dist/previews/expanded-effects/`.
 
 ## Offline export
 

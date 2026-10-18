@@ -7,18 +7,19 @@ from unittest.mock import patch
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 import numpy as np
 from PySide6.QtCore import QRectF
-from PySide6.QtGui import QImage
+from PySide6.QtGui import QImage,QPainterPath,QTransform
 from PySide6.QtWidgets import QApplication
 from nightfall import model
-from nightfall.renderer import render, surface_path, SHOW_SCENES
-from nightfall.spectacle import actor_frame, ACTOR_FRAMES, STYLES
+from nightfall.renderer import render,render_scene,surface_path,SHOW_SCENES,facade_cast,box,facade_shape,figure_shape
+from nightfall.spectacle import actor_frame, ACTOR_FRAMES, ACTOR_BOUNDS, STYLES,character_slots
+from nightfall.routes import performance_slots,performer_pose
 
 APP=QApplication.instance() or QApplication([])
 
 
 class SpectacleTests(unittest.TestCase):
-    def test_six_characters_have_complete_300_frame_loops(self):
-        for name in ['skeleton','bat','owl','spider','pumpkin','wisp']:
+    def test_eight_characters_have_complete_300_frame_loops(self):
+        for name in ACTOR_BOUNDS:
             with self.subTest(character=name):
                 hashes={hashlib.sha256(actor_frame(name,i).constBits()).digest() for i in range(ACTOR_FRAMES)}
                 self.assertGreater(len(hashes),275,'Motion must contain real evaluated in-betweens.')
@@ -60,3 +61,58 @@ class SpectacleTests(unittest.TestCase):
                 for start,_,_ in SHOW_SCENES[show]:render(data,start+2,show)
             seen={call.args[2] for call in scene.call_args_list}
         self.assertTrue(set(STYLES)<=seen)
+
+    def test_complete_casts_remain_clear_of_windows_and_each_other_for_120s(self):
+        data=model.default_project();facade=model.region(data,'facade')
+        safe=figure_shape(data,facade_shape(data,facade));bounds=box(facade['projector_points'])
+        casts=[('legacy',facade_cast(data)[1])]
+        casts.append(('shadow-bats',performance_slots(safe,bounds,[(144,112,3,4,3)]*2)))
+        for kind,count in [('skeleton',3),('bat',4),('pumpkin',3),('spider',4),('wisp',3),('owl',3),('young-ghost',2),('young-skeleton',2)]:
+            casts.append((kind,character_slots(safe,bounds,kind,count)))
+        for name,cast in casts:
+            slots=[s for s in cast if s is not None]
+            self.assertGreaterEqual(len(slots),1,name)
+            self.assertTrue(all(max(s.size)>=100 for s in slots),'Brickwork needs large readable silhouettes.')
+            for frame in range(120*60):
+                boxes=[]
+                for slot in slots:
+                    rect,angle=performer_pose(slot,frame/60)
+                    tr=QTransform();tr.translate(rect.center().x(),rect.center().y());tr.rotate(angle)
+                    actual=tr.mapRect(QRectF(-rect.width()/2,-rect.height()/2,rect.width(),rect.height()))
+                    self.assertTrue(QRectF(*slot.envelope).contains(actual),(name,frame))
+                    self.assertTrue(safe.contains(actual.adjusted(-6,-6,6,6)),(name,frame))
+                    self.assertFalse(any(actual.adjusted(-6,-6,6,6).intersects(other) for other in boxes),(name,frame))
+                    boxes.append(actual)
+
+    def test_a_small_wall_omits_performers_instead_of_clipping_them(self):
+        safe=QPainterPath();safe.addRect(QRectF(0,0,80,80))
+        cast=performance_slots(safe,safe.boundingRect(),[(100,100,15,15,12)]*3)
+        self.assertEqual(cast,(None,None,None))
+
+    def test_character_viewports_contain_all_poses_and_preserve_proportions(self):
+        for kind,bounds in ACTOR_BOUNDS.items():
+            x,y,w,h=bounds
+            for variant in range(3):
+                for index in range(ACTOR_FRAMES):
+                    image=actor_frame(kind,index,variant)
+                    alpha=np.frombuffer(image.constBits(),np.uint8).reshape(256,256,4)[:,:,3]
+                    self.assertFalse(alpha[:y].any() or alpha[y+h:].any() or alpha[:,:x].any() or alpha[:,x+w:].any(),(kind,variant,index))
+                    self.assertFalse(alpha[0].any() or alpha[-1].any() or alpha[:,0].any() or alpha[:,-1].any(),(kind,variant,index))
+
+    def test_scene_transitions_never_superimpose_two_casts(self):
+        blank=QImage(800,1280,QImage.Format_RGB32);blank.fill(0)
+        with patch('nightfall.renderer.render_scene',return_value=blank) as scene:
+            for show,scenes in SHOW_SCENES.items():
+                for start,_,_ in scenes[1:]:
+                    for frame in range(60):
+                        scene.reset_mock();render({},start+frame/60,show)
+                        self.assertEqual(len(scene.call_args_list),2)
+                        strengths=[c.kwargs.get('actor_strength',1) for c in scene.call_args_list]
+                        self.assertFalse(all(s>.001 for s in strengths),(show,start,frame))
+
+    def test_architecture_scenes_do_not_send_bands_behind_windows(self):
+        data=model.default_project();data['effects'].update(architecture_strength=0,tree_strength=0)
+        for r in data['regions']:r['enabled']=r['id']=='facade'
+        for mode in ['haunted','waves','clockwork','electric']:
+            image=render_scene(data,2.35,mode).convertToFormat(QImage.Format_RGB888)
+            self.assertFalse(any(image.constBits()),mode)
