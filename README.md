@@ -47,12 +47,17 @@ python -m venv .venv
 
 Set the projector's extended desktop to **800 × 1280**, portrait, at **100%** scaling. Open a mapping with **Open**, select a corner or contour, and drag to adjust it. The reference image stays on the laptop. The projector receives only the masked output.
 
+On Windows, use **Win+P → Extend** and choose the projector in **Projector display** in Nightfall. With one external display, Nightfall selects it automatically. The output covers the complete selected screen, including when it is rotated or uses a different display scale from the laptop. Windows handles the display rotation; no extra rotation is needed in Nightfall. Changing the display selection also moves an active projection to that screen.
+
 - Arrow keys move by 1 pixel; Shift moves by 10 pixels; Ctrl moves by ¼ pixel.
 - Tab selects the next corner. Ctrl+Z undoes an edit; Ctrl+S saves.
 - The wheel zooms, the middle button pans, and `0` fits the view.
 - **Reference: day/night** switches reference images without changing projector geometry.
 - **Projector on** enables output; clicking it again blacks out the projector. Esc hides the output.
 - **Video → Open video file…** plays an existing MP4. **Preview on this screen only** keeps playback and the FPS readout on the main screen without opening fullscreen projector output. The large readout reports frames actually painted by the app over a two-second window; it does not measure the monitor refresh rate.
+- Choose **Video player → VLC · projector** to play finished MP4s directly in VLC. Windows packages select VLC by default. Nightfall finds installed or portable VLC; **Choose VLC…** locates another copy. VLC is a separate optional installation, available from [VideoLAN](https://www.videolan.org/vlc/).
+- VLC opens on the selected **Projector display**, fullscreen and looping, with titles and controls hidden. Windows supplies portrait rotation; the video keeps its aspect ratio. Nightfall's FPS counter applies to internal playback and previews; it does not measure external VLC.
+- **Stop video**, closing Nightfall, or disconnecting the projector stops the VLC instance that Nightfall started. Other VLC sessions keep running. **Projector off** stops VLC and leaves a black output; **Projector on** restarts the video from the beginning. Changing the projector display also restarts playback on that display.
 - **Video** also starts an effect or the Halloween tour. The tour changes from the children's show to the braver visitors' show at the configured local time.
 - **Render video** exports both two-minute shows from the current mapping. It becomes **Stop render** while rendering. Completed videos remain intact when a render is cancelled.
 
@@ -60,7 +65,11 @@ Smoke uses a fixed 50% strength. The old lamp-post placeholder is removed when o
 
 Glass, the bay front and exclusion masks stay black as configured. A window needs a reflective screen before it can receive projection. Save your aligned mapping and matching `.alignment.png` together. Reference images are embedded when a loaded project is saved, so personal projects remain portable.
 
+The alignment pattern contains only the outer attic frame, right window frame and outer roof edge, in white. Match these to the bright physical trim; there are no numbered anchors or origin markers. Hidden contours are also omitted from the exported wireframe. The foreground tree blocks wall effects completely, including its boundary; its own leaf animation stays inside that blackout.
+
 Packaged builds keep render caches in `%LOCALAPPDATA%/Nightfall/renders` on Windows and `${XDG_DATA_HOME:-~/.local/share}/Nightfall/renders` on Linux. Source runs use `renders/` in the project directory.
+
+Completed shows can also travel in a `videos/` folder beside the saved house mapping. Keep their `render-manifest.json`: Nightfall automatically uses these videos, including for the scheduled tour, when the geometry, effects, source code and assets match. Editing the map invalidates that match.
 
 ## Test playback on this computer
 
@@ -73,6 +82,28 @@ Open an existing video directly, with a visible main-screen FPS counter:
 On Windows, use `nightfall.exe --preview-only --video path\to\video.mp4`. The player preserves the source video's cadence; it does not generate extra frames to turn 30 fps video into 60 fps. Live preview renders effects on demand and is measured separately from video playback.
 
 Rendering defaults to one or two CPU workers, drops to one when available memory is low or cannot be measured, and limits encoder threads. No dedicated GPU is required. An older computer may render slower than real time: render the shows first, then play the completed videos. A 60 fps file does not guarantee 60 displayed frames per second on every computer; use the FPS counter to check the target machine.
+
+## Characters and architectural animation
+
+Both two-minute exports contain changing scenes with one-second background dissolves, including the last-to-first loop transition. The loop does not fade to black. Outgoing scenes cannot launch another lightning cue or restart their play during that dissolve, and architectural motion keeps one continuous pattern per scene. The 4–8 show includes the original friendly young skeleton and cloth ghost, pumpkins, will-o-the-wisps, owls, light waves and a breathing house. The 8–12 show adds mysterious spirits, bats, a large spider, local flicker, clockwork windows, fire and Cheshire. **Video** also offers all twelve new scenes separately, plus a twelve-scene complete show.
+
+Each performer gets a separate clear patch of brickwork with enough room for its complete pose, tilt and movement. Large silhouettes, fixed proportions and broad bright architectural accents suit distant projection on dim brickwork. A cramped wall omits additional performers; the background tree is subdued. Window, tree and exclusion clearance are checked throughout the motion. During a scene change, the outgoing cast fades out before the next cast appears, while background colours dissolve smoothly. Loose horizontal light bands are removed. White frames, roof/bay trim and curtains receive a separate output correction after the wall brightness boost. Trim uses vivid scene palettes with saturation kept separate from output strength; there is no white underglow. A steady 2.4-pixel coloured stroke and filled strip preserve a visible core while broader accents move. The bay trim dims further while pumpkins, a skeleton or an owl occupies the ledge. Brickwork characters retain their full brightness. Defaults are `white_trim_level: 0.38`, `white_curtain_level: 0.45` and `occupied_ledge_level: 0.16` in `effects`; these signal levels are starting points for the actual projector and paint reflectance.
+
+The children's opening is a small play using the actual house: a skeleton greets visitors from the bay ledge, simple ivory and mint ghosts follow closed routes around the attic and right window, candles flicker on the reflective curtain strips, and two pumpkins take turns hopping on the bay ledge. The later owl perches on that ledge too. Actor feet and pumpkin bases are anchored to the measured support line. Window orbits check the whole silhouette against masonry, glass, tree and exclusion masks; a blocked passage omits that flight. The spiders hang on threads from the actual gable edge, and the old line-drawn bats are replaced by textured, articulated bats with mirrored wings.
+
+The older show combines separate upper-wall, central and ledge actions: a bat swoops over the attic, a spider descends on its thread, the ledge alternates between an owl, pumpkins and a dancing skeleton, and large eyes follow the moving lights. A spirit circles the right frame during the electric cue. The electric and clockwork cues last six seconds each; flames and a wisp, dancing bones and the disappearing cat supply the longer scenes.
+
+Character motion uses full five-second cycles evaluated at 60 fps: **300 rendered frames per cycle**. The image-generated textures supply the detail; articulated bones, shoulders and legs, squash, turns and ribbon deformation supply continuous in-between motion. The source images and exact prompts are documented in [character animation assets](assets/ANIMATION-PROMPTS.md).
+
+The saved mapping stays fixed. Breathing contours, traveling waves, rotating light and flickering chases are clipped inside the actual window frames, roof edge and bay trim. Rotating patterns on reflective paper or curtains also stay inside their mapped surfaces; untreated glass and exclusion masks remain black.
+
+To inspect the character loops outside the app:
+
+```bash
+python tools/preview_animations.py --frames
+```
+
+This creates a five-second 60 fps video contact sheet, eight sets of 300 transparent PNGs and a ZIP under `dist/previews/expanded-effects/`.
 
 ## Offline export
 

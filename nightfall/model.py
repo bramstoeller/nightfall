@@ -96,6 +96,9 @@ def validate(data):
     if not finite(data.get('effects',{}).get('lightning_strength',.85)) or not 0<=data.get('effects',{}).get('lightning_strength',.85)<=1: raise ValueError('Lightning strength must be between 0 and 1.')
     gain=data.get('effects',{}).get('brightness_gain',3)
     if not finite(gain) or not 1<=gain<=4:raise ValueError('Brightness gain must be between 1 and 4.')
+    for name,default in [('white_trim_level',.38),('white_curtain_level',.45),('occupied_ledge_level',.16)]:
+        level=data.get('effects',{}).get(name,default)
+        if not finite(level) or not 0<=level<=1:raise ValueError('White surface levels must be between 0 and 1.')
     return data
 
 def from_web(web):

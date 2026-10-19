@@ -2,12 +2,13 @@ from __future__ import annotations
 import base64, copy, json, sys, time, uuid
 from collections import deque
 from pathlib import Path
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer, QProcess, QEvent, QTime
+from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer, QProcess, QEvent, QTime, QSettings
 from PySide6.QtGui import QColor, QImage, QImageReader, QPainter, QPen, QKeySequence, QShortcut, QTransform
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QComboBox, QPushButton, QCheckBox, QLabel, QFileDialog, QMessageBox, QDoubleSpinBox, QSlider, QInputDialog, QSplitter, QFormLayout, QScrollArea, QMenu, QTimeEdit)
 from . import model
 from .renderer import render, path, alignment_shapes, uv_transform
 from .video import VideoPlayer
+from .external_player import VLCPlayer, find_vlc
 from .effects import STYLES
 from . import render_cache
 from .runtime import render_command
@@ -39,7 +40,46 @@ MODES=[('Contour lines','wireframe'),('Filled regions','fills'),('Selection only
 
 class Projector(QWidget):
     def __init__(self,owner):
-        super().__init__();self.owner=owner;self.blacked_out=False;self.setWindowTitle('Nightfall — projector output');self.setCursor(Qt.BlankCursor)
+        super().__init__(None,Qt.Window|Qt.FramelessWindowHint)
+        self.owner=owner;self.blacked_out=False;self.target_screen=None
+        self.setWindowTitle('Nightfall — projector output');self.setCursor(Qt.BlankCursor)
+        self.geometry_timer=QTimer(self);self.geometry_timer.setSingleShot(True)
+        self.geometry_timer.timeout.connect(self.ensure_screen_geometry)
+        QApplication.instance().screenRemoved.connect(self.screen_removed)
+    def show_on(self,screen):
+        self.target_screen=screen
+        # Place the entire window before its first native show. Moving a window
+        # while it is already fullscreen can retain the previous monitor's size
+        # on Windows, especially when the monitors have different DPI settings.
+        if not self.isVisible() or not self.isFullScreen() or self.screen()!=screen or self.geometry()!=screen.geometry():
+            self.place_on_screen()
+        self.geometry_timer.start(0)
+        self.update()
+    def place_on_screen(self):
+        screen=self.target_screen
+        self.hide();self.setWindowState(Qt.WindowNoState)
+        # QWidget.setScreen also works before a native window exists; winId()
+        # would create that window on the laptop first.
+        self.setScreen(screen);self.setGeometry(screen.geometry())
+        self.showFullScreen()
+        handle=self.windowHandle()
+        if handle!=getattr(self,'_observed_window',None):
+            handle.screenChanged.connect(self.schedule_geometry_check)
+            self._observed_window=handle
+        self.raise_()
+    def schedule_geometry_check(self,*args):
+        if self.isVisible() and self.target_screen is not None:self.geometry_timer.start(0)
+    def resizeEvent(self,e):
+        super().resizeEvent(e)
+        self.schedule_geometry_check()
+    def ensure_screen_geometry(self):
+        screen=self.target_screen
+        if not self.isVisible() or screen not in QApplication.screens():return
+        # Recheck after queued native screen/DPI events have been processed.
+        if not self.isFullScreen() or self.screen()!=screen or self.geometry()!=screen.geometry():self.place_on_screen()
+    def screen_removed(self,screen):
+        if screen==self.target_screen:
+            self.hide();self.target_screen=None
     def paintEvent(self,e):
         p=QPainter(self);p.setRenderHint(QPainter.SmoothPixmapTransform);p.fillRect(self.rect(),Qt.black)
         im=self.owner.video_frame if self.owner.video.active or self.owner.live_mode else self.owner.frame
@@ -49,7 +89,11 @@ class Projector(QWidget):
     def keyPressEvent(self,e):
         if e.key()==Qt.Key_Escape:self.owner.stop_video();self.hide()
         else:self.owner.editor.keyPressEvent(e)
+    def showEvent(self,e):
+        if hasattr(self.owner,'projector_button'):self.owner.projector_button.setText('Projector on' if self.blacked_out else 'Projector off')
+        super().showEvent(e)
     def hideEvent(self,e):
+        self.geometry_timer.stop()
         if hasattr(self.owner,'projector_button'):self.owner.projector_button.setText('Projector on')
         super().hideEvent(e)
 
@@ -218,6 +262,14 @@ class MainWindow(QMainWindow):
         self.preview_check=QCheckBox('Preview on this screen only');self.preview_check.setChecked(self.preview_only)
         self.preview_check.setToolTip('Keep the video and FPS visible in the editor without opening fullscreen projector output.')
         self.preview_check.toggled.connect(self.set_preview_only);playback_bar.addWidget(self.preview_check)
+        display_bar=QHBoxLayout();layout.addLayout(display_bar)
+        display_bar.addWidget(QLabel('Projector display'));display_bar.addWidget(self.screens,1)
+        display_bar.addWidget(QLabel('Video player'))
+        self.player_box=QComboBox();self.player_box.addItem('VLC · projector','vlc');self.player_box.addItem('Nightfall · preview','internal')
+        self.player_box.setCurrentIndex(0 if self.player_backend=='vlc' else 1)
+        self.player_box.setToolTip('VLC plays finished videos directly on the selected display. Install VLC or choose its application below.')
+        self.player_box.activated.connect(self.select_player);display_bar.addWidget(self.player_box)
+        self.vlc_button=QPushButton('Choose VLC…');self.vlc_button.clicked.connect(self.choose_vlc);display_bar.addWidget(self.vlc_button)
         self.editor.setParent(panel);layout.addWidget(self.editor,1)
         hint=QLabel('Click a corner or edge · arrows: 1 px · Shift: 10 px · Ctrl: ¼ px · Tab: next corner · Ctrl+Z: undo · wheel: zoom · 0: fit')
         layout.addWidget(hint);self.setCentralWidget(panel)
@@ -251,23 +303,31 @@ class MainWindow(QMainWindow):
         if now>=self.tour_switch_time():self.tour_switched=True
         stage='older' if self.tour_switched else 'young'
         if stage==self.tour_stage:return
-        preserve_blackout=self.tour_stage is not None and self.projector.blacked_out
+        preserve_blackout=self.tour_stage is not None and (self.external_blackout if self.external_filename is not None else self.projector.blacked_out)
         self.tour_stage=stage;self.play_house_animation(stage,automatic=True)
         if preserve_blackout:
+            if self.external_filename is not None:self.external_blackout=True;self.external_video.stop()
             self.projector.blacked_out=True;self.projector.update()
             if hasattr(self,'projector_button'):self.projector_button.setText('Projector on')
-        self.tour_active=bool(self.video.active or self.live_mode)
+        self.tour_active=bool(self.video.active or self.external_filename is not None or self.live_mode)
         name='Brave visitors' if stage=='older' else 'Children'
         self.note(name+' · switch time '+self.tour_switch_time().toString('HH:mm'))
     def simple_blackout(self):
         self.toggle_projector()
     def toggle_projector(self):
+        if self.external_filename is not None:
+            if self.external_blackout:self.resume_external_video()
+            else:
+                self.external_blackout=True;self.external_video.stop();self.show_external_cover()
+                self.video_button.setText('Stop video');self.projector_button.setText('Projector on')
+                self.playback_status.setText('VLC · black · Projector on restarts the video')
+            return
         if not self.projector.isVisible() or self.projector.blacked_out:self.show_projector()
         else:
             self.projector.blacked_out=True;self.projector_button.setText('Projector on');self.projector.update()
         self.editor.setFocus()
     def choose_video(self):
-        if self.video.active or self.live_mode:self.stop_video();return
+        if self.video.active or self.external_filename is not None or self.live_mode:self.stop_video();return
         menu=QMenu(self)
         menu.addAction('Open video file…').setData('file')
         menu.addSeparator()
@@ -284,6 +344,8 @@ class MainWindow(QMainWindow):
         filename,_=QFileDialog.getOpenFileName(self,'Play video','','Videos (*.mp4 *.mkv *.mov)')
         if filename:self.play_animation(filename)
     def set_preview_only(self,enabled):
+        if self.external_filename is not None:
+            filename=self.external_filename;self.stop_video(cancel_tour=False);self.preview_only=enabled;self.play_animation(filename);return
         self.preview_only=enabled
         if self.video.active or self.live_mode:
             if enabled:self.projector.hide()
@@ -296,6 +358,8 @@ class MainWindow(QMainWindow):
         if not automatic:self.tour_active=False;self.animation_mode=mode
         cached=render_cache.video(self.data,mode)
         if cached.exists():self.play_animation(str(cached));return
+        exported=render_cache.exported_video(self.data,mode,self.filename)
+        if exported is not None:self.play_animation(str(exported));return
         self.play_live_animation(mode)
         self.note('Live preview · click Render video to export the current effects at 60 fps.')
     def render_animation(self):
@@ -344,11 +408,50 @@ class MainWindow(QMainWindow):
         if hasattr(self,'playback_status'):self.playback_status.setText('Live preview · measuring FPS…')
     def play_animation(self,filename):
         try:
+            if self.player_backend=='vlc' and not self.preview_only:
+                self.play_external_video(filename);return
             self.stop_video(cancel_tour=False);self.playing=False
             self.video.start(filename);self.video_frame=QImage(model.WIDTH,model.HEIGHT,QImage.Format_RGB32);self.video_frame.fill(Qt.black)
             self.video_button.setText('Stop video');self.show_playback_output();self.note('Video loops until you click Stop video.')
             if hasattr(self,'playback_status'):self.playback_status.setText('Video playback · measuring FPS…')
         except RuntimeError as e:QMessageBox.warning(self,'Video',str(e))
+    def select_player(self,index):
+        backend=self.player_box.itemData(index)
+        if backend==self.player_backend:return
+        self.stop_video();self.player_backend=backend
+        self.settings.setValue('video/player',backend)
+    def choose_vlc(self):
+        filename,_=QFileDialog.getOpenFileName(self,'Choose VLC application',self.vlc_program or '', 'VLC (vlc.exe)' if sys.platform=='win32' else 'Applications (*)')
+        if not filename:return
+        self.vlc_program=filename;self.settings.setValue('video/vlc',filename)
+        self.player_box.setCurrentIndex(0);self.select_player(0)
+        self.note('VLC selected · finished videos play on the chosen projector display.')
+    def show_external_cover(self):
+        screen=self.screens.currentData()
+        if screen not in QApplication.screens():return
+        self.projector.blacked_out=True;self.projector.show_on(screen);self.projector.update()
+    def play_external_video(self,filename):
+        screen=self.screens.currentData();screens=QApplication.screens()
+        if screen not in screens:raise RuntimeError('Choose the projector display before starting VLC.')
+        if not find_vlc(self.vlc_program):raise RuntimeError('VLC was not found. Install VLC, then select it using Choose VLC… .')
+        if not Path(filename).is_file():raise RuntimeError('The selected video does not exist.')
+        self.stop_video(cancel_tour=False);self.playing=False;self.external_filename=str(Path(filename).resolve());self.external_blackout=False
+        self.show_external_cover()
+        self.video_button.setText('Stop video');self.projector_button.setText('Projector off')
+        self.playback_status.setText('VLC · '+self.screens.currentText()+' · fullscreen · loop')
+        # On Windows FailedToStart can arrive inside QProcess.start(). Prepare
+        # controls first so that the failure handler's reset remains visible.
+        self.external_video.start(self.external_filename,screen,screens.index(screen),self.vlc_program)
+        if self.external_filename is not None:self.note('VLC plays directly on the projector. Stop video returns to a black screen; Projector on restores the alignment pattern.')
+    def resume_external_video(self):
+        filename=self.external_filename
+        if filename is not None:self.play_animation(filename)
+    def external_stopped(self):
+        if self.external_blackout or self.external_filename is None:return
+        self.external_filename=None;self.tour_active=False;self.tour_stage=None
+        if hasattr(self,'video_button'):self.video_button.setText('Video')
+        if hasattr(self,'playback_status'):self.playback_status.clear()
+        if hasattr(self,'projector_button'):self.projector_button.setText('Projector on')
     def receive_video(self,frame):self.video_frame=frame;self.projector.update();self.editor.update()
     def record_video_paint(self,screen):
         key=self.video_frame.cacheKey()
@@ -366,6 +469,7 @@ class MainWindow(QMainWindow):
         self.playback_status.setText(f"{kind} · Main screen: {rates['laptop']} fps · Projector: {projector}")
     def stop_video(self,cancel_tour=True):
         if cancel_tour:self.tour_active=False;self.tour_stage=None
+        self.external_filename=None;self.external_blackout=False;self.external_video.stop()
         self.live_mode=None;self.video.stop();self.video_stopped()
     def video_stopped(self):
         if hasattr(self,'video_button'):self.video_button.setText('Video')
@@ -377,6 +481,12 @@ class MainWindow(QMainWindow):
     def __init__(self,data=None):
         super().__init__();self.data=data or model.default_project();self.selected='roof';self.mode='wireframe';self.filename=None;self.dirty=False;self.undo_stack=[];self.redo_stack=[];self.t=0.;self.playing=False;self.process=None;self.frame=QImage();self.reference=QImage();self.setWindowTitle('Nightfall — projection mapping');self.resize(1360,900)
         self.preview_only=False
+        self.settings=QSettings('Nightfall','Nightfall')
+        self.vlc_program=self.settings.value('video/vlc','')
+        self.player_backend=self.settings.value('video/player','vlc' if getattr(sys,'frozen',False) and sys.platform=='win32' else 'internal')
+        self.external_filename=None;self.external_blackout=False;self.external_video=VLCPlayer(self)
+        self.external_video.stopped.connect(self.external_stopped)
+        self.external_video.failed.connect(lambda message:QMessageBox.warning(self,'VLC',message))
         self.live_mode=None;self.live_play_origin=0.;self.video_frame=QImage();self.video=VideoPlayer(self);self.video.frame_ready.connect(self.receive_video);self.video.stopped.connect(self.video_stopped)
         self.tour_active=False;self.tour_stage=None;self.tour_switched=False
         self.display_times={'projector':deque(),'laptop':deque()};self.display_keys={}
@@ -410,7 +520,9 @@ class MainWindow(QMainWindow):
         for label,value in MODES:self.mode_box.addItem(label,value)
         self.mode_box.currentIndexChanged.connect(self.change_mode);bottom.addWidget(self.mode_box)
         self.flash_check=QCheckBox('Bliksemflitsen');self.flash_check.setChecked(self.data.get('effects',{}).get('lightning_strength',.85)>0);self.flash_check.toggled.connect(self.set_flashes);bottom.addWidget(self.flash_check);self.photo_check=QCheckBox('Show reference on laptop');self.photo_check.toggled.connect(lambda _:self.editor.update());bottom.addWidget(self.photo_check)
-        self.screens=QComboBox();bottom.addWidget(self.screens,1);self.scan_screens();QApplication.instance().screenAdded.connect(self.scan_screens);QApplication.instance().screenRemoved.connect(self.scan_screens)
+        self.screens=QComboBox();self.screens.setToolTip('Choose the extended desktop display connected to the projector.')
+        bottom.addWidget(self.screens,1);self.scan_screens();self.screens.activated.connect(self.projector_screen_selected)
+        QApplication.instance().screenAdded.connect(self.scan_screens);QApplication.instance().screenRemoved.connect(self.scan_screens)
         for text,fn in [('Projector on',self.show_projector),('Projector black',self.blackout),('Save PNG',self.save_pattern)]:b=QPushButton(text);b.clicked.connect(fn);bottom.addWidget(b)
         row=QHBoxLayout();outer.addLayout(row);self.play_button=QPushButton('Play');self.play_button.clicked.connect(self.play);row.addWidget(self.play_button);self.seek=QSlider(Qt.Horizontal);self.seek.setRange(0,self.data['output']['fps']*120-1);self.seek.valueChanged.connect(self.seek_to);row.addWidget(self.seek,1);self.clock=QLabel('00:00 / 02:00');row.addWidget(self.clock)
         self.projector=Projector(self);self.timer=QTimer(self);self.timer.timeout.connect(self.tick);self.timer.setTimerType(Qt.PreciseTimer);self.timer.start(16);self.play_origin=time.monotonic();self.flash_check.setEnabled(not self.data.get('locked'));self.global_button.setEnabled(not self.data.get('locked'));self.tree_strength.setEnabled(not self.data.get('locked'));self.read_reference();self.rebuild_list();self.refresh();self.statusBar().showMessage('Draft mapping. Align on site, then save the final mapping.');
@@ -516,22 +628,38 @@ class MainWindow(QMainWindow):
                 x,y=self.current()['projector_points'][i];name+=f' · corner {i+1} · {x:.2f}, {y:.2f} px'
             self.simple_status.setText(name)
     def scan_screens(self,*args):
-        previous=self.screens.currentData();old_name=self.screens.currentText().split(' · ')[0] if previous is not None else None
+        previous=self.screens.currentData();screens=QApplication.screens()
+        for screen in screens:
+            if screen not in getattr(self,'_observed_screens',[]):
+                screen.geometryChanged.connect(self.scan_screens)
+                screen.logicalDotsPerInchChanged.connect(self.scan_screens)
+                screen.physicalDotsPerInchChanged.connect(self.scan_screens)
+        self._observed_screens=screens
         self.screens.clear()
-        for i,s in enumerate(QApplication.screens()):
-            self.screens.addItem(f'{i+1}: {s.name()} · {s.size().width()}×{s.size().height()} · scale {s.devicePixelRatio():g}',i)
-        candidates=[i for i,s in enumerate(QApplication.screens()) if s.size().width()==model.WIDTH and s.size().height()==model.HEIGHT and s.devicePixelRatio()==1]
-        old=next((i for i in range(self.screens.count()) if self.screens.itemText(i).split(' · ')[0]==old_name),None)
+        for i,s in enumerate(screens):
+            size=s.geometry().size();scale=s.devicePixelRatio()
+            self.screens.addItem(f'{i+1}: {s.name()} · {round(size.width()*scale)}×{round(size.height()*scale)} · scale {scale:g}',s)
+        external=[s for s in screens if s!=self.screen()]
+        candidates=[s for s in external or screens if s.size().width()==model.WIDTH and s.size().height()==model.HEIGHT and s.devicePixelRatio()==1]
+        preferred=previous if previous in screens else candidates[0] if len(candidates)==1 else external[0] if len(external)==1 else screens[0] if len(screens)==1 else None
         self.screens.setPlaceholderText('Choose the projector display')
-        self.screens.setCurrentIndex(old if old is not None else candidates[0] if len(candidates)==1 else 0 if self.screens.count()==1 else -1)
+        self.screens.setCurrentIndex(screens.index(preferred) if preferred is not None else -1)
+        if getattr(self,'external_filename',None) is not None and self.external_video.screen not in screens:
+            self.stop_video();self.note('VLC stopped because the projector display was disconnected.')
+        if hasattr(self,'projector'):self.projector.ensure_screen_geometry()
+    def projector_screen_selected(self,*args):
+        if self.external_filename is not None and not self.external_blackout:
+            self.resume_external_video();return
+        if self.projector.isVisible():
+            screen=self.screens.currentData()
+            if screen in QApplication.screens():
+                self.projector.show_on(screen)
+                if hasattr(self,'projector_button'):self.projector_button.setText('Projector on' if self.projector.blacked_out else 'Projector off')
     def show_projector(self):
-        ss=QApplication.screens();i=self.screens.currentData()
-        if i is None and hasattr(self,'simple_status'):
-            i=next((j for j,s in enumerate(ss) if s!=QApplication.primaryScreen()),0)
-            self.screens.setCurrentIndex(i)
-        if i is None:self.note('Select the projector display from the display list first.');return
-        if i>=len(ss):self.scan_screens();return
-        s=ss[i];self.projector.winId();self.projector.windowHandle().setScreen(s);self.projector.move(s.geometry().topLeft());self.projector.showFullScreen();self.projector.update()
+        s=self.screens.currentData()
+        if s not in QApplication.screens():
+            self.scan_screens();self.note('Select the projector display from the display list first.');return
+        self.projector.show_on(s)
         self.projector.blacked_out=False
         if hasattr(self,'projector_button'):self.projector_button.setText('Projector off')
         if s.size().width()!=model.WIDTH or s.size().height()!=model.HEIGHT or s.devicePixelRatio()!=1:self.note('Set the projector display to 800×1280 at 100% scaling. The image is currently scaled to fit.')
@@ -539,6 +667,7 @@ class MainWindow(QMainWindow):
     def play(self):self.playing=not self.playing;self.play_origin=time.monotonic()-self.t;self.play_button.setText('Pause' if self.playing else 'Play')
     def tick(self):
         self.check_tour_time()
+        if self.external_filename is not None:return
         if self.live_mode:
             self.video_frame=render(self.data,(time.monotonic()-self.live_play_origin)%120,self.live_mode);self.projector.update();self.editor.update();self.update_display_rate();return
         if self.video.active:self.update_display_rate();return
@@ -621,7 +750,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self,e):
         if self.process and self.process.state()!=QProcess.NotRunning:QMessageBox.information(self,'Render active','Wait for rendering to finish before closing the app.');e.ignore();return
         if not self.abandon_ok():e.ignore();return
-        self.video.stop()
+        self.stop_video()
         self.projector.close();e.accept()
 
 def main():

@@ -3,27 +3,39 @@ import math
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPainterPathStroker, QPen, QPolygonF, QTransform, QRadialGradient, QPixmap
 from .model import WIDTH, HEIGHT, ROOT, origin_point, region
-from .animation import skeleton_frame
+from .animation import skeleton_frame, young_ghost_frame
 from .effects import draw_extras, OLD,fireflies,STYLES
-from .routes import flight_route,flight_position
+from .routes import flight_route,flight_position,performance_slots,performer_pose
 from .atmosphere import texture,soft_colour,feather_mask,outset
-from .tone import brighten
+from .tone import brighten,balance_materials
+from .spectacle import architecture_palette
 
 TAU=2*math.pi
-SHOW_SCENES=[('young',12),('aurora',0),('older',6),('embers',0),('shadowplay',0),('cheshire',0),('moonlight',0)]
+SHOW_SCENES={
+    'young':[(0,'young',0),(30,'young-skeletons',0),(42,'pumpkins',0),(54,'waves',0),
+             (66,'young-ghosts',0),(78,'owls',0),(90,'haunted',0),(102,'wisps',2),(114,'cheshire',3)],
+    'older':[(0,'older',0),(24,'bats',0),(36,'electric',0),(42,'spiders',0),
+             (60,'clockwork',0),(66,'embers',0),(78,'bones',0),(96,'cheshire',1),(108,'shadowplay',0)],
+    'show':[(0,'bones',0),(10,'pumpkins',0),(20,'waves',0),(30,'wisps',0),
+            (40,'owls',0),(50,'haunted',0),(60,'bats',0),(70,'spiders',0),
+            (80,'clockwork',0),(90,'electric',0),(100,'embers',0),(110,'cheshire',1)],
+}
 
-def render_show(data,t):
-    """Seven eighteen-second scenes, overlapping for one second: 120 seconds."""
-    t=t%120;index=min(6,int(t/17));mode,offset=SHOW_SCENES[index]
-    current=render(data,t-index*17+offset,mode)
-    if index and t-index*17<1:
-        previous_mode,previous_offset=SHOW_SCENES[index-1]
-        result=render(data,t-(index-1)*17+previous_offset,previous_mode)
-        p=QPainter(result);u=t-index*17;p.setOpacity(smooth(u));p.drawImage(0,0,current);p.end();current=result
-    fade=min(smooth(t/.8),smooth((120-t)/.8))
-    if fade<1:
-        result=QImage(WIDTH,HEIGHT,QImage.Format_RGB32);result.fill(Qt.black)
-        p=QPainter(result);p.setOpacity(fade);p.drawImage(0,0,current);p.end();current=result
+def render_show(data,t,show='show'):
+    """Two-minute programmes with one-second dissolves and a clean loop seam."""
+    t=t%120;scenes=SHOW_SCENES[show]
+    index=max(i for i,(start,_,_) in enumerate(scenes) if start<=t)
+    start,mode,offset=scenes[index]
+    if t-start<1:
+        age=t-start
+        # Exchange performers through a brief empty stage. Dissolving two full
+        # casts put the outgoing and incoming silhouettes on top of each other.
+        current=render_scene(data,t-start+offset,mode,actor_strength=smooth(max(0,2*age-1)))
+        previous_start,previous_mode,previous_offset=scenes[index-1]
+        previous_age=(t-previous_start)%120
+        result=render_scene(data,previous_age+previous_offset,previous_mode,actor_strength=smooth(max(0,1-2*age)),allow_events=False)
+        p=QPainter(result);p.setOpacity(smooth(t-start));p.drawImage(0,0,current);p.end();current=result
+    else:current=render_scene(data,t-start+offset,mode)
     return current
 
 def clamp(v,a=0,b=1): return max(a,min(b,v))
@@ -82,14 +94,14 @@ def sprite(kind):
 def ghost(p,x,y,size,beat,old=False,kind=None):
     kind=kind or ('older-wraith' if old else 'young-ghost')
     if p.opacity()<.001:return
-    im=skeleton_frame(beat*4/TAU) if kind=='young-skeleton' else sprite(kind)
+    im=skeleton_frame(beat*4/TAU) if kind=='young-skeleton' else young_ghost_frame(beat*4/TAU) if kind=='young-ghost' else sprite(kind)
     p.save();base=p.opacity();p.translate(x,y)
-    tilt=.065 if kind=='young-skeleton' else .008 if kind=='young-candle' else .035
+    tilt=0 if kind=='young-ghost' else .065 if kind=='young-skeleton' else .008 if kind=='young-candle' else .035
     p.rotate(math.degrees(math.sin(beat*(2 if kind=='young-skeleton' else .5))*tilt))
     width=size*1.1;height=width*im.height()/im.width();segments=24
     for i in range(segments):
         src_y=i*im.height()/segments;src_h=im.height()/segments
-        amplitude=.007 if kind=='young-candle' else .015 if kind=='young-skeleton' else .035
+        amplitude=0 if kind=='young-ghost' else .007 if kind=='young-candle' else .015 if kind=='young-skeleton' else .035
         offset=math.sin(beat+i*.45)*(i/segments)**1.6*width*amplitude
         target=QRectF(-width/2+offset,-height*.45+i*height/segments,width,height/segments+.2)
         source=QRectF(0,src_y,im.width(),src_h+.5)
@@ -100,14 +112,21 @@ def ghost(p,x,y,size,beat,old=False,kind=None):
         p.setCompositionMode(QPainter.CompositionMode_Screen);p.setOpacity(base*local_alpha*.65);p.drawImage(target,im,source);p.setCompositionMode(QPainter.CompositionMode_SourceOver)
     p.restore()
 
-def fly(p,shape,b,t,actor,old=False,opacity=1,kind=None):
+def fly(p,shape,b,t,actor,old=False,opacity=1,kind=None,slot=None):
     # House-specific sweeping routes: cross the wall between windows, rise
     # towards the gable, then swoop down. Surface masks occlude the performers.
     if opacity<.001 or p.opacity()<.001:return
     kind=kind or ('older-wraith' if old else 'young-ghost')
-    ratio=sprite(kind).height()/sprite(kind).width();route=flight_route(shape,b,ratio,old,7)
-    if route is None:return
-    x,y,width=flight_position(route,t,actor)
+    if slot is not None:
+        rect,_=performer_pose(slot,t)
+        actor_image=young_ghost_frame(t) if kind=='young-ghost' else sprite(kind)
+        ratio=actor_image.height()/actor_image.width()
+        width=min(rect.width(),rect.height()/ratio);height=width*ratio
+        x,y=rect.center().x(),rect.center().y()-.05*height
+    else:
+        ratio=sprite(kind).height()/sprite(kind).width();route=flight_route(shape,b,ratio,old,7)
+        if route is None:return
+        x,y,width=flight_position(route,t,actor)
     p.save();p.setOpacity(p.opacity()*opacity);p.setClipPath(shape,Qt.IntersectClip)
     ghost(p,x,y,width/1.1,TAU*t/4+actor,old,kind)
     p.restore()
@@ -167,14 +186,19 @@ def living_tree(p,b,t,strength,breathing=False):
 def draw_tree(p,data,r,t):
     """Feather the foreground and its blackout together, preserving leaf detail."""
     shape=path(r['projector_points']);b=box(r['projector_points'])
-    mask,rect=feather_mask(shape,24,opaque_interior=True)
+    # A soft tree texture must never act as a translucent wall blackout.
+    # The physical foreground blocks the wall completely, including its edge.
+    p.save();p.setOpacity(1);p.fillPath(shape,Qt.black);p.restore()
+    from .atmosphere import inset
+    effect_shape=inset(shape,r.get('effect_inset',0))
+    mask,rect=feather_mask(effect_shape,24,opaque_interior=True)
     layer=QImage(rect.size(),QImage.Format_ARGB32_Premultiplied);layer.fill(Qt.black)
     q=QPainter(layer);q.setRenderHints(QPainter.Antialiasing|QPainter.SmoothPixmapTransform)
-    q.translate(-rect.x(),-rect.y());q.setOpacity(r.get('gain',1))
+    q.translate(-rect.x(),-rect.y());q.setOpacity(r.get('gain',1)*.35)
     effects=data.get('effects',{})
     if r.get('enabled',True):
-        living_tree(q,b,t,effects.get('tree_strength',.22),effects.get('tree_breathing',False))
-        fireflies(q,shape,b,t,45)
+        living_tree(q,b,t,effects.get('tree_strength',.22)*.35,effects.get('tree_breathing',False))
+        fireflies(q,effect_shape,b,t,12)
     q.resetTransform();q.setOpacity(1)
     q.setCompositionMode(QPainter.CompositionMode_DestinationIn);q.drawImage(0,0,mask);q.end()
     p.save();p.setOpacity(1);p.drawImage(rect.topLeft(),layer);p.restore()
@@ -201,13 +225,6 @@ def lightning(p,b,t,strength):
     if pulse>.003:
         glow=QRadialGradient(QPointF(b.x()+b.width()*.5,b.y()+b.height()*.45),b.width()*.7)
         glow.setColorAt(0,QColor(163,184,255,160));glow.setColorAt(1,QColor(80,106,179,0));p.setOpacity(base*pulse);p.fillRect(b,glow)
-        # Momentary brick detail, visible only in the flash illumination.
-        p.setPen(QPen(QColor(83,106,170,85),.5))
-        row_h=max(3,b.height()/75);brick_w=row_h*3.3
-        for row in range(75):
-            yy=b.y()+row*row_h;p.drawLine(QPointF(b.left(),yy),QPointF(b.right(),yy))
-            xx=b.left()+(brick_w*.5 if row%2 else 0)
-            while xx<b.right():p.drawLine(QPointF(xx,yy),QPointF(xx,yy+row_h));xx+=brick_w
     p.setOpacity(base*max(pulse,after));p.setBrush(Qt.NoBrush)
     for width,color in [(9,QColor(117,120,255,28)),(4,QColor(147,170,255,95)),(2,QColor('#ffffff'))]:
         p.setPen(QPen(color,width));p.drawPath(trunk)
@@ -256,6 +273,7 @@ def facade_shape(data,r,margin=0):
         # Smoke may meet the fascia; subtracting it here feathers a needless
         # black band into the brickwork above it. Its own glow is drawn later.
         if (q['type'] in ('window','frame','stage') and not q['id'].startswith('bay-trim')) or (q['id']=='bay' and not has_bay_front):shape=shape.subtracted(surface_path(data,q))
+        if q['type']=='occluder':shape=shape.subtracted(outset(path(q['projector_points']),3))
     return shape
 
 def figure_shape(data,shape):
@@ -263,14 +281,25 @@ def figure_shape(data,shape):
     for r in data['regions']:
         if r['type']=='occluder' or r['id']=='right-sill' or r['id'].startswith('bay-trim') or r.get('figures_excluded',False):
             shape=shape.subtracted(path(r['projector_points']))
-    cutouts={rid for r in data['regions'] for rid in r.get('cutout_ids',[])}
     for exclusion in data.get('exclusions',[]):
         if not exclusion.get('enabled',True):continue
-        if exclusion['id'] not in cutouts:shape=shape.subtracted(path(exclusion['projector_points']))
-    return shape
+        forbidden=path(exclusion['projector_points'])
+        if exclusion['id']=='exclusion-roof-inner':forbidden=outset(forbidden,3)
+        shape=shape.subtracted(forbidden)
+    # Use the same final material masks that are applied after all painting.
+    # A planned performer must fit before that final masking pass, too.
+    return shape.subtracted(glass_mask(data)).subtracted(excluded_surfaces(data))
+
+def facade_cast(data):
+    facade=region(data,'facade');safe=figure_shape(data,facade_shape(data,facade))
+    specs=[(144,144,3,4,0)]
+    return safe,performance_slots(safe,box(facade['projector_points']),specs)
 
 def render(data,t=0,mode='wireframe',selected=None):
-    if mode=='show':return render_show(data,t)
+    if mode in SHOW_SCENES:return render_show(data,t,mode)
+    return render_scene(data,t,mode,selected)
+
+def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1,allow_events=True):
     """Render a native-resolution QImage; nothing from the editor enters output."""
     im=QImage(WIDTH,HEIGHT,QImage.Format_RGB32);im.fill(Qt.black)
     p=QPainter(im);p.setRenderHints(QPainter.Antialiasing|QPainter.SmoothPixmapTransform)
@@ -283,17 +312,20 @@ def render(data,t=0,mode='wireframe',selected=None):
             for x,y in r['projector_points']:p.drawEllipse(QPointF(x,y),2,2)
         p.end();return im
     if mode=='alignment':
-        for i,a in enumerate(data.get('alignment',{}).get('anchors',[])):
-            if a.get('name')=='Window corner' and origin_point(data) is not None:continue
-            x,y=a['point'];p.setPen(QPen(QColor(a.get('color','#ffffff')),2));p.setBrush(Qt.NoBrush)
-            p.drawLine(QPointF(x-10,y),QPointF(x+10,y));p.drawLine(QPointF(x,y-10),QPointF(x,y+10));p.drawEllipse(QPointF(x,y),5,5)
-            p.drawText(QPointF(x+13,y+14),str(i+1))
-        draw_origin(p,data);p.end();return im
+        p.setPen(QPen(Qt.white,2));p.setBrush(Qt.NoBrush)
+        for rid in ('attic','right'):
+            frame=next((r for r in data['regions'] if r['id']=='frame-'+rid),region(data,rid))
+            p.drawPath(path(frame['projector_points']))
+        roof=region(data,'roof')['projector_points']
+        p.drawPolyline(polygon(roof[:3] if len(roof)==6 else roof))
+        p.end();return im
     debug=mode in ('wireframe','fills','selected')
+    visible={r['id'] for r in alignment_shapes(data)} if mode=='wireframe' else None
     t=t%120;old=mode in OLD;beat=TAU*t/4
     for r in data['regions']:
         if r.get('role')=='group' and mode!='selected':continue
         if debug:
+            if visible is not None and r['id'] not in visible:continue
             if mode=='selected' and r['id']!=selected:continue
             col=QColor(r['color']);p.setOpacity(1);p.setPen(QPen(col,2 if r['id']!=selected else 3))
             p.setBrush(Qt.NoBrush)
@@ -309,32 +341,34 @@ def render(data,t=0,mode='wireframe',selected=None):
         main_painter=p
         paint_shape=shape
         if r['id']=='facade':
-            paint_shape=facade_shape(data,r,10)
+            paint_shape=facade_shape(data,r)
             for exclusion in data.get('exclusions',[]):
                 if not exclusion.get('enabled',True):continue
-                if exclusion['id'] not in r.get('cutout_ids',[]):paint_shape=paint_shape.subtracted(path(exclusion['projector_points']))
+                if exclusion['id'] not in r.get('cutout_ids',[]):
+                    forbidden=path(exclusion['projector_points'])
+                    # Shared roof/wall vertices need the same clearance used
+                    # by the final blackout, avoiding coincident-edge booleans.
+                    if exclusion['id']=='exclusion-roof-inner':forbidden=outset(forbidden,3)
+                    paint_shape=paint_shape.subtracted(forbidden)
             # Fade every wall effect together, including sparks and lightning.
             wall_mask,wall_rect=feather_mask(paint_shape,14,opaque_interior=True)
             wall_layer=QImage(wall_rect.size(),QImage.Format_ARGB32_Premultiplied);wall_layer.fill(Qt.transparent)
             p=QPainter(wall_layer);p.setRenderHints(QPainter.Antialiasing|QPainter.SmoothPixmapTransform)
             p.translate(-wall_rect.x(),-wall_rect.y())
-        elif r['id']=='roof':paint_shape=outset(shape,4)
         p.save();p.setClipPath(paint_shape);gain=r.get('gain',1);p.setOpacity(gain)
         x,y,w,h=b.x(),b.y(),b.width(),b.height()
         if r['id']=='facade':
+            cast=facade_cast(data)[1] if mode in {'young','older','moonlight'} else ()
             if old:
-                if mode=='older':lightning(p,b,t,data.get('effects',{}).get('lightning_strength',.85))
-                reveal=max(cycle(t,s,13,2) for s in [116,16,36,56,76,96])
-                if mode in {'older','moonlight'}:
-                    p.setOpacity(gain*.85*reveal);fly(p,flight_shape,b,t,1,True,kind='older-wraith')
+                if mode=='older' and allow_events:lightning(p,b,t,data.get('effects',{}).get('lightning_strength',.85))
+                reveal=max(cycle(t,s,8,1.2) for s in [0,28,40,68,80,108])
+                if mode in {'older','moonlight'} and cast and cast[0] is not None:
+                    p.setOpacity(gain*.85*reveal*actor_strength);fly(p,flight_shape,b,t,1,True,kind='older-wraith',slot=cast[0])
             elif mode=='young':
-                for actor in range(3):
-                    p.setOpacity(gain*(.72+.24*math.sin(TAU*t/20+actor)**2))
-                    fly(p,flight_shape,b,t,actor,kind='young-ghost')
-                p.setOpacity(gain*.8);stars(p,b,t,38,'#ffe89a')
+                p.setOpacity(gain*.8);stars(p,b,t,10,'#ffe89a')
         elif r['type']=='edge':
             phase=t%30;a=sum(cycle(t,s,3) for s in [11,41,71,101]);p.setOpacity(gain*a);p.fillRect(QRectF(x+clamp((phase-11)/3)*w-12,y,24,h),QColor('#ba91dd' if old else '#ffca80'))
-        elif r['type']=='stage':
+        elif r['type']=='stage' and mode in {'young','older','moonlight','shadowplay'}:
             # The bottom edge is the feet/support line on the bay platform.
             p.setTransform(uv_transform(r['projector_points']),True)
             dance=math.sin(TAU*t/2);hop=.045*(1-math.cos(TAU*t))
@@ -342,15 +376,18 @@ def render(data,t=0,mode='wireframe',selected=None):
             source_rect=QRectF(actor.rect()) if old else QRectF(0,100,480,550)
             actor_width=min(.9,.92*source_rect.width()/source_rect.height()*h/max(w,1))
             # Larger side steps and animated joints make the tiny stage readable.
-            p.setOpacity(gain);p.drawImage(QRectF((1-actor_width)/2+.10*dance,.08-hop,actor_width,.92),actor,source_rect)
+            shift=min(.10,max(0,(1-actor_width)/2-.04))
+            p.setOpacity(gain*actor_strength);p.drawImage(QRectF((1-actor_width)/2+shift*dance,.12-hop,actor_width,.84),actor,source_rect)
         elif r['type']=='window' and mode in {'young','older','moonlight'}:
             # Explicit physical-paper mode: map the whole sprite into this quad.
-            idx={'attic':0,'left':1,'right':2}.get(r['id'],3);a=max(cycle(t,s+idx*3,14,1.5) for s in [0,30,60,90]);p.setOpacity(gain*a)
+            idx={'attic':0,'left':1,'right':2}.get(r['id'],3);a=max(cycle(t,s+idx*3,14,1.5) for s in [0,30,60,90]);p.setOpacity(gain*a*actor_strength)
             p.setTransform(uv_transform(r['projector_points']),True)
-            im_sprite=sprite('older-wraith' if old else 'young-ghost')
+            im_sprite=sprite('older-wraith') if old else young_ghost_frame(t)
             float_y=.012*math.sin(TAU*t/10+idx)
-            p.drawImage(QRectF(.12,.05+float_y,.76,.90),im_sprite)
-        elif r['type']=='curtain' and mode in {'young','older','moonlight','shadowplay'}:
+            physical_ratio=im_sprite.width()/im_sprite.height()*h/max(w,1)
+            height=min(.90,.76/max(physical_ratio,.01));width=height*physical_ratio
+            p.drawImage(QRectF((1-width)/2,(1-height)/2+float_y,width,height),im_sprite)
+        elif r['type']=='curtain' and mode in {'older','moonlight','shadowplay'}:
             if any(q['id']==r.get('parent') and q.get('paper_screen',False) for q in data['regions']):p.restore();continue
             idx=0 if r['id']=='curtain-left' else 1 if r['id']=='curtain-r1' else 2;a=max(cycle(t,s+idx*2,7) for s in [2,22,42,62,82,102]);p.setOpacity(gain*a)
             if a>.001:
@@ -363,23 +400,23 @@ def render(data,t=0,mode='wireframe',selected=None):
         elif r['id']=='bay':
             a=max(cycle(t,s,4) for s in [25,55,85,115]);p.setOpacity(gain*a);p.setPen(Qt.NoPen);p.setBrush(QColor('#91d8a4' if old else '#ffe0a4'))
             for i in range(5):p.drawEllipse(QPointF(x+((t/4+i*.13)%1)*w,y+h*.5),2,2)
-        p.setOpacity(gain);draw_extras(p,data,r,t,mode,paint_shape,b)
+        p.setOpacity(gain);draw_extras(p,data,r,t,mode,paint_shape,b,actor_strength,allow_events=allow_events)
         p.restore()
         if r['id']=='facade':
             p.resetTransform();p.setOpacity(1);p.setCompositionMode(QPainter.CompositionMode_DestinationIn)
             p.drawImage(0,0,wall_mask);p.end();p=main_painter
             p.save();p.setOpacity(1);p.drawImage(wall_rect.topLeft(),wall_layer);p.restore()
     if not debug:
-        # Low warm-white accents establish the real architecture between cues.
-        p.setOpacity(data.get('effects',{}).get('architecture_strength',.10));p.setBrush(Qt.NoBrush);p.setPen(QPen(QColor('#fff2dc'),1.8))
+        # Low coloured accents establish the real architecture between cues.
+        trim_primary,trim_secondary=architecture_palette(mode)
+        p.setOpacity(data.get('effects',{}).get('architecture_strength',.10));p.setBrush(Qt.NoBrush);p.setPen(QPen(QColor(trim_primary),1.8))
         for r in data['regions']:
             if r.get('role')=='group':continue
             if r['id']=='roof' or r.get('shape')=='ellipse':
                 glow=surface_path(data,r)
-                if r['id']=='roof':glow=outset(glow,4)
-                soft_colour(p,glow,STYLES.get(mode,('', '#fff2dc'))[1])
+                soft_colour(p,glow,trim_primary)
             elif r['type']=='frame' and r.get('enabled',True):
-                p.setOpacity(data.get('effects',{}).get('architecture_strength',.10)*r.get('gain',1));soft_colour(p,surface_path(data,r),'#fff2dc');p.setOpacity(data.get('effects',{}).get('architecture_strength',.10))
+                p.setOpacity(data.get('effects',{}).get('architecture_strength',.10)*r.get('gain',1));soft_colour(p,surface_path(data,r),trim_secondary);p.setOpacity(data.get('effects',{}).get('architecture_strength',.10))
         for r in data['regions']:
             if r['type']!='occluder':continue
             draw_tree(p,data,r,t)
@@ -397,4 +434,4 @@ def render(data,t=0,mode='wireframe',selected=None):
             p.fillPath(forbidden,Qt.black)
     if debug:draw_origin(p,data)
     p.end()
-    return im if debug else brighten(im,data.get('effects',{}).get('brightness_gain',3))
+    return im if debug else balance_materials(brighten(im,data.get('effects',{}).get('brightness_gain',3)),data,mode,t,allow_events)

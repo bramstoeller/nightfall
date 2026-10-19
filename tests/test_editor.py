@@ -38,13 +38,15 @@ class PolygonTests(unittest.TestCase):
     def test_dancer_changes_pose_and_repeats(self):
         poses=[bytes(skeleton_frame(t).constBits()) for t in [0,.25,.5,.75]]
         self.assertEqual(len(set(poses)),4)
-        self.assertEqual(bytes(skeleton_frame(0).constBits()),bytes(skeleton_frame(2).constBits()))
+        self.assertEqual(bytes(skeleton_frame(0).constBits()),bytes(skeleton_frame(5).constBits()))
         # Changing pose must be visible in the mapped stage itself.
         only_stage=copy.deepcopy(self.data)
         for r in only_stage['regions']:r['enabled']=r['type']=='stage'
         only_stage['effects']['architecture_strength']=0
-        a=render(only_stage,0,'young');b=render(only_stage,.5,'young')
-        self.assertNotEqual(bytes(a.constBits()),bytes(b.constBits()))
+        from nightfall.renderer import render_scene
+        import hashlib
+        a=render_scene(only_stage,0,'young');b=render_scene(only_stage,.5,'young')
+        self.assertNotEqual(hashlib.sha256(a.constBits()).digest(),hashlib.sha256(b.constBits()).digest())
 
     def test_window_symmetry_is_preserved_in_start_map(self):
         inv,ok=uv_transform(model.region(self.data,'right')['projector_points']).inverted()
@@ -371,7 +373,7 @@ class PolygonTests(unittest.TestCase):
         self.assertFalse(pids&{p.pid for p in multiprocessing.active_children()})
 
     def test_bay_mask_leaves_brickwork_above_fascia_for_smoke_and_figures(self):
-        from nightfall.renderer import facade_shape,figure_shape
+        from nightfall.renderer import facade_shape,figure_shape,render_scene
         d=model.load(ROOT/'examples/house.json');facade=model.region(d,'facade')
         wall=facade_shape(d,facade)
         for x,y in [(350,550),(450,840),(450,879)]:
@@ -386,9 +388,9 @@ class PolygonTests(unittest.TestCase):
         self.assertTrue(actors.contains(QPointF(350,550)))
         self.assertFalse(actors.contains(QPointF(450,895)))
         # A ghost on the wall must not vanish along with the duplicated cutout.
-        image=render(d,5,'young')
+        image=render_scene(d,5,'young-ghosts')
         self.assertGreater(sum(image.pixelColor(x,y).lightness()>70
-            for x in range(340,600,3) for y in range(510,630,3)),5)
+            for x in range(340,600,3) for y in range(510,630,3) if actors.contains(QPointF(x,y))),5)
 
     def test_flowing_smoke_is_continuous_and_loops_without_strip_edges(self):
         from nightfall.atmosphere import flowing_smoke

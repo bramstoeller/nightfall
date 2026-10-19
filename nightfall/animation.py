@@ -4,12 +4,14 @@ The existing ivory-bone texture is drawn as separate head, torso and jointed
 limbs. Time selects an exact pose, shared by live playback, GIF and MP4 export.
 """
 import math
-from PySide6.QtCore import QPointF, Qt
+import numpy as np
+from functools import lru_cache
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QImage, QPainter, QPainterPath
 from .model import ROOT
 
 FPS = 60
-PERIOD = 2
+PERIOD = 5
 _frames = {}
 _source = None
 _pieces = {}
@@ -69,7 +71,8 @@ def limb(p, names, joints, angles):
 def skeleton_frame(t):
     index = round((t % PERIOD)*FPS) % (PERIOD*FPS)
     if index in _frames: return _frames[index]
-    a = 2*math.pi*index/(PERIOD*FPS)
+    phrase = 2*math.pi*index/(PERIOD*FPS)
+    a = phrase*3
     im = QImage(480,720,QImage.Format_ARGB32_Premultiplied)
     im.fill(Qt.transparent)
     p = QPainter(im)
@@ -84,7 +87,7 @@ def skeleton_frame(t):
     limb(p,['thigh-r','shin-r','foot-r'],[(643,802),(799,1018),(704,1296)],
          [-14*math.sin(a),24*max(0,-math.sin(a)),-10*math.sin(a)])
     limb(p,['arm-l','forearm-l','hand-l'],[(321,411),(178,563),(148,354)],
-         [22*math.sin(a),-27*math.sin(a+.6),12*math.sin(2*a)])
+         [22*math.sin(a)-12*(1-math.cos(phrase)),-27*math.sin(a+.6),18*math.sin(2*a)])
     limb(p,['arm-r','forearm-r','hand-r'],[(585,397),(710,544),(851,584)],
          [-28*math.sin(a),25*math.sin(a+.6),-15*math.sin(2*a)])
     p.drawImage(0,0,piece('body'))
@@ -93,5 +96,56 @@ def skeleton_frame(t):
     p.drawImage(0,0,piece('head'))
     p.restore()
     p.end()
+    if len(_frames)>=96:_frames.pop(next(iter(_frames)))
     _frames[index] = im
+    return im
+
+
+@lru_cache(maxsize=1)
+def ghost_texture():
+    source=QImage(str(ROOT/'assets/young-ghost.png')).scaled(320,400,Qt.KeepAspectRatio,Qt.SmoothTransformation).convertToFormat(QImage.Format_ARGB32_Premultiplied)
+    if source.isNull():raise RuntimeError('assets/young-ghost.png is missing.')
+    pixels=np.frombuffer(source.constBits(),np.uint8).reshape(source.height(),source.width(),4).copy()
+    yy,xx=np.indices((480,384),dtype=np.float32)
+    return pixels,xx,yy
+
+
+def young_ghost_frame(t):
+    return _young_ghost_frame(round((t%PERIOD)*FPS)%(PERIOD*FPS))
+
+
+@lru_cache(maxsize=96)
+def _young_ghost_frame(index):
+    """One continuous cloth mesh: a five-second float, sleeve wave and wink."""
+    phase=2*math.pi*index/(PERIOD*FPS)
+    pixels,xx,yy=ghost_texture();h,w=pixels.shape[:2]
+    turn=math.radians(3*math.sin(phase));c,s=math.cos(turn),math.sin(turn)
+    dx=xx-192-6*math.sin(phase);dy=yy-240-8*math.cos(phase)
+    x=c*dx+s*dy+w/2;y=-s*dx+c*dy+h/2
+    u,v=x/w,y/h
+    cloth=np.clip((v-.42)/.58,0,1)**2
+    x=x-5*np.sin(2*phase+v*7)*cloth
+    # Smooth local deformations move sleeves together with their shoulders;
+    # splitting the cloth into pieces would expose dark seams at the joints.
+    left=np.exp(-((u-.17)/.20)**2-((v-.41)/.15)**2)
+    right=np.exp(-((u-.87)/.18)**2-((v-.53)/.15)**2)
+    y=y-(left*9-right*7)*math.sin(3*phase)
+    valid=(x>=0)&(x<w-1)&(y>=0)&(y<h-1)
+    x=np.clip(x,0,w-1.001);y=np.clip(y,0,h-1.001)
+    ix=x.astype(np.int32);iy=y.astype(np.int32)
+    fx=(x-ix)[:,:,None];fy=(y-iy)[:,:,None]
+    result=((pixels[iy,ix]*(1-fx)+pixels[iy,ix+1]*fx)*(1-fy)
+            +(pixels[iy+1,ix]*(1-fx)+pixels[iy+1,ix+1]*fx)*fy).astype(np.uint8)
+    result[~valid]=0
+    im=QImage(result.data,384,480,384*4,QImage.Format_ARGB32_Premultiplied).copy()
+    wink=math.exp(-((index/FPS-3.3)/.18)**2)
+    if wink>.005:
+        from PySide6.QtGui import QColor,QPen
+        p=QPainter(im);p.setRenderHint(QPainter.Antialiasing)
+        p.translate(192+6*math.sin(phase),240+8*math.cos(phase));p.rotate(math.degrees(turn));p.translate(-w/2,-h/2)
+        cx,cy=w*.665,h*.265
+        p.setOpacity(wink);p.setPen(Qt.NoPen);p.setBrush(QColor('#eee5d8'))
+        p.drawEllipse(QRectF(cx-w*.027,cy-h*.028,w*.054,h*.056))
+        lid=QPainterPath();lid.moveTo(cx-w*.022,cy);lid.quadTo(cx,cy+h*.01,cx+w*.022,cy)
+        p.setPen(QPen(QColor('#5d3926'),2,Qt.SolidLine,Qt.RoundCap));p.setBrush(Qt.NoBrush);p.drawPath(lid);p.end()
     return im

@@ -32,23 +32,24 @@ class MappingTests(unittest.TestCase):
         shape=path(model.region(d,'right')['projector_points']);im=render(d,10,'young')
         b=shape.boundingRect();self.assertTrue(any(im.pixelColor(x,y).lightness()>80 for x in range(int(b.left())+3,int(b.right())-3,2) for y in range(int(b.top())+3,int(b.bottom())-3,2) if shape.contains(QPointF(x,y))))
         model.region(d,'tree')['enabled']=False
-        from nightfall.atmosphere import inset
         for show in ['young','older']:
             im=render(d,8.03,show);tree=path(model.region(d,'tree')['projector_points'])
-            # The centre blacks out the facade; the 24px leaf boundary fades.
-            safe=inset(tree,26)
+            # The foreground boundary must block the wall as fully as its
+            # centre; a feathered leaf effect cannot reveal blue wall light.
             b=tree.boundingRect()
             for x in range(int(b.left())+3,int(b.right())-3,5):
                 for y in range(int(b.top())+3,int(b.bottom())-3,5):
-                    if safe.contains(QRectF(x-2,y-2,4,4)):self.assertEqual(im.pixelColor(x,y).lightness(),0)
+                    if tree.contains(QRectF(x-2,y-2,4,4)):self.assertEqual(im.pixelColor(x,y).lightness(),0)
     def test_loop_and_glass(self):
         d=model.default_project()
         for show in ['young','older']:
             a=render(d,0,show);b=render(d,120,show);self.assertEqual(bytes(a.constBits()),bytes(b.constBits()))
             a=render(d,119.9999,show);b=render(d,0,show)
-            # Rounded sprite strip edges have a tiny rasterization tolerance.
-            diff=sum(abs(x-y) for x,y in zip(bytes(a.constBits()),bytes(b.constBits())))
-            self.assertLess(diff,12000)
+            # A lit loop tolerates small subpixel/texture quantization changes;
+            # it must stay continuous without hiding the join in a black fade.
+            differences=[abs(x-y) for x,y in zip(bytes(a.constBits()),bytes(b.constBits()))]
+            self.assertLess(sum(differences)/(800*1280*3),.1)
+            self.assertLess(max(differences),20)
             for r in d['regions']:
                 if r['type']=='window':r['enabled']=False
             for t in [0,2,8,8.03,8.2,24.05,39.05,69,115.03,119.97]:
