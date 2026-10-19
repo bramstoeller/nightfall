@@ -8,13 +8,14 @@ _materials={}
 def balance_materials(image,data,mode,t,allow_restart=True):
     """White trim reflects far more than brick: attenuate after wall gain.
 
-    Keep coloured motion, reduce the neutral white wash, and leave
+    Keep trim fully saturated at a separate light level, and leave
     the occupied bay ledge especially quiet so its performers stay dominant.
     Calibration patterns deliberately bypass this video-only correction.
     """
     from PySide6.QtCore import Qt
-    from PySide6.QtGui import QImage,QPainter,QPainterPath
+    from PySide6.QtGui import QColor,QImage,QPainter,QPainterPath
     from .renderer import surface_path
+    from .spectacle import architecture_palette
     regions=data['regions'];effects=data.get('effects',{})
     key=(image.width(),image.height(),tuple((r['id'],r['type'],r.get('enabled',True),
          r.get('border_width'),r.get('shape'),r.get('inner_region'),tuple(r.get('inner_regions',[])),
@@ -48,10 +49,19 @@ def balance_materials(image,data,mode,t,allow_restart=True):
             'ledge':trim+(effects.get('occupied_ledge_level',.16)-trim)*occupied,
             'cloth':effects.get('white_curtain_level',.45)}
     pixels=np.frombuffer(image.bits(),np.uint8).reshape(-1,4)
+    fallback=QColor(architecture_palette(mode)[1])
+    fallback=np.array([fallback.blue(),fallback.green(),fallback.red()],np.float32)/255
     for name,(indices,coverage) in _materials[key].items():
         if not len(indices):continue
         original=pixels[indices,:3].astype(np.float32)
-        target=original if name=='cloth' else original-original.min(axis=1)[:,None]*.35
+        target=original
+        if name!='cloth':
+            peak=original.max(axis=1)[:,None];low=original.min(axis=1)[:,None]
+            chroma=peak-low
+            # Preserve peak intensity while increasing colour saturation.
+            # Neutral pixels take the scene's trim hue instead of dull grey.
+            vivid=(original-low)*peak/np.maximum(chroma,1)
+            target=np.where(chroma>=np.maximum(1,peak*.05),vivid,peak*fallback)
         target=target*levels[name]
         pixels[indices,:3]=np.rint(original+(target-original)*coverage).clip(0,255).astype(np.uint8)
     return image

@@ -8,6 +8,7 @@ from .effects import draw_extras, OLD,fireflies,STYLES
 from .routes import flight_route,flight_position,performance_slots,performer_pose
 from .atmosphere import texture,soft_colour,feather_mask,outset
 from .tone import brighten,balance_materials
+from .spectacle import architecture_palette
 
 TAU=2*math.pi
 SHOW_SCENES={
@@ -406,15 +407,16 @@ def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1,allow_
             p.drawImage(0,0,wall_mask);p.end();p=main_painter
             p.save();p.setOpacity(1);p.drawImage(wall_rect.topLeft(),wall_layer);p.restore()
     if not debug:
-        # Low warm-white accents establish the real architecture between cues.
-        p.setOpacity(data.get('effects',{}).get('architecture_strength',.10));p.setBrush(Qt.NoBrush);p.setPen(QPen(QColor('#fff2dc'),1.8))
+        # Low coloured accents establish the real architecture between cues.
+        trim_primary,trim_secondary=architecture_palette(mode)
+        p.setOpacity(data.get('effects',{}).get('architecture_strength',.10));p.setBrush(Qt.NoBrush);p.setPen(QPen(QColor(trim_primary),1.8))
         for r in data['regions']:
             if r.get('role')=='group':continue
             if r['id']=='roof' or r.get('shape')=='ellipse':
                 glow=surface_path(data,r)
-                soft_colour(p,glow,STYLES.get(mode,('', '#fff2dc'))[1])
+                soft_colour(p,glow,trim_primary)
             elif r['type']=='frame' and r.get('enabled',True):
-                p.setOpacity(data.get('effects',{}).get('architecture_strength',.10)*r.get('gain',1));soft_colour(p,surface_path(data,r),'#fff2dc');p.setOpacity(data.get('effects',{}).get('architecture_strength',.10))
+                p.setOpacity(data.get('effects',{}).get('architecture_strength',.10)*r.get('gain',1));soft_colour(p,surface_path(data,r),trim_secondary);p.setOpacity(data.get('effects',{}).get('architecture_strength',.10))
         for r in data['regions']:
             if r['type']!='occluder':continue
             draw_tree(p,data,r,t)

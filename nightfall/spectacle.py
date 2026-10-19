@@ -27,6 +27,25 @@ STYLES={
     'clockwork':('Clockwork windows','#ffb85a','#80dfff','Rotating diamonds, spirals and shutters stay inside each surface.'),
     'electric':('Haunted electric frames','#ad83ff','#59e8ff','Local flicker, chasing sparks and alternating illuminated edges.'),
 }
+TRIM_PALETTES={
+    'young':('#ff7800','#7800ff'),'young-skeletons':('#00dcaf','#174dff'),
+    'young-ghosts':('#00cfff','#6900ff'),'bones':('#00d6c3','#204aff'),
+    'pumpkins':('#8b00ff','#00df70'),'bats':('#6500ff','#ff00ad'),
+    'spiders':('#8d00ff','#ff5700'),'wisps':('#00edb4','#0060ff'),
+    'owls':('#00aaff','#a000ff'),'haunted':('#7000ff','#00baff'),
+    'waves':('#00caff','#ff0095'),'clockwork':('#ff7000','#ff00a0'),
+    'electric':('#7800ff','#00c5ff'),'older':('#174bff','#a000ff'),
+    'aurora':('#00e63d','#00d7b6'),'embers':('#ff2400','#ff9400'),
+    'moonlight':('#006fff','#8000ff'),'shadowplay':('#9300ff','#ff0078'),
+    'cheshire':('#8c00ff','#ff00a8'),
+}
+
+
+def architecture_palette(mode):
+    """Paint colours for white trim, independent of ivory character colours."""
+    return TRIM_PALETTES.get(mode,('#00bfff','#9700ff'))
+
+
 ATLAS_NAMES={name:f'{name}-atlas-v1' for name in ['bat','pumpkin','spider','wisp','owl']}
 # Union of every pose and all three variants, with a transparent safety border.
 # These fixed source viewports preserve each character's original proportions.
@@ -261,14 +280,19 @@ def guide(r):
 def architecture_lights(p,r,shape,t,mode,c1,c2):
     """The clip stays fixed while light moves, breathes or rotates inside it."""
     p.save();p.setClipPath(shape,Qt.IntersectClip);base=p.opacity()
-    p.setCompositionMode(QPainter.CompositionMode_Screen)
+    p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    c1,c2=architecture_palette(mode)
     route,length,samples=guide(r);b=shape.boundingRect();phase=(sum(ord(c) for c in r['id'])%31)/5
     motion={'haunted':'breath','waves':'wave','clockwork':'rotate','electric':'flicker'}.get(mode)
     if motion is None:
         motion={'young':'chase','older':'wave','young-skeletons':'chase','young-ghosts':'breath',
                 'pumpkins':'breath','bats':'wave','spiders':'chase','bones':'chase',
                 'embers':'wave','wisps':'wave','owls':'breath','cheshire':'chase','shadowplay':'wave'}.get(mode,'chase')
-    soft_colour(p,shape,c2,.32)
+    # Fill the physical strip even when a moving wave leaves its centre.
+    # A 2.4px steady stroke retains a useful core after clipping/antialiasing.
+    p.fillPath(shape,colour(c2,28))
+    p.setPen(QPen(colour(c2,50),2.4,Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin))
+    p.setBrush(Qt.NoBrush);p.drawPath(route)
     if motion=='breath':
         breath=.5-.5*math.cos(TAU*t/5+phase)
         p.setOpacity(base*(.45+.5*breath));p.fillPath(shape,colour(c1,210))

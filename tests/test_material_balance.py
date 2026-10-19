@@ -19,10 +19,12 @@ class MaterialBalanceTests(unittest.TestCase):
     def test_white_surface_compensation_follows_global_gain_and_preserves_brick(self):
         image=QImage(80,20,QImage.Format_RGB32);image.fill(QColor(100,100,100))
         result=balance_materials(brighten(image,3),self.data(),'pumpkins',3)
-        self.assertGreaterEqual(result.pixelColor(10,10).red(),45)
-        self.assertLessEqual(result.pixelColor(10,10).red(),90)
-        self.assertGreaterEqual(result.pixelColor(50,10).red(),15)
-        self.assertLessEqual(result.pixelColor(50,10).red(),40)
+        self.assertGreaterEqual(max(result.pixelColor(10,10).getRgb()[:3]),45)
+        self.assertLessEqual(max(result.pixelColor(10,10).getRgb()[:3]),110)
+        self.assertGreaterEqual(max(result.pixelColor(50,10).getRgb()[:3]),15)
+        self.assertLessEqual(max(result.pixelColor(50,10).getRgb()[:3]),45)
+        self.assertGreater(result.pixelColor(10,10).saturationF(),.95)
+        self.assertGreater(result.pixelColor(50,10).saturationF(),.95)
         self.assertEqual(result.pixelColor(30,10).getRgb(),(115,115,115,255))
         self.assertEqual(result.pixelColor(70,10).getRgb(),(255,255,255,255))
 
@@ -49,3 +51,26 @@ class MaterialBalanceTests(unittest.TestCase):
             before=balance_materials(image.copy(),self.data(),'young',time-.001)
             after=balance_materials(image.copy(),self.data(),'young',time+.001)
             self.assertLessEqual(abs(before.pixelColor(50,10).red()-after.pixelColor(50,10).red()),1)
+
+    def test_dimming_changes_light_level_without_turning_trim_grey(self):
+        image=QImage(80,20,QImage.Format_RGB32);image.fill(QColor(220,160,190))
+        data=self.data();full=balance_materials(image.copy(),data,'waves',2).pixelColor(10,10)
+        data['effects']['white_trim_level']=.19
+        dim=balance_materials(image.copy(),data,'waves',2).pixelColor(10,10)
+        self.assertGreater(full.saturationF(),.98);self.assertGreater(dim.saturationF(),.98)
+        self.assertLessEqual(abs(full.hue()-dim.hue()),2)
+        self.assertAlmostEqual(dim.valueF()/full.valueF(),.5,delta=.02)
+
+    def test_two_pixel_strips_stay_visible_across_moving_effects(self):
+        from nightfall import model
+        from nightfall.renderer import render_scene
+        data=model.default_project();data['effects'].update(architecture_strength=0,tree_strength=0)
+        for r in data['regions']:r['enabled']=r['id']=='frame-attic'
+        r=model.region(data,'frame-attic');r['projector_points']=[[100,100],[300,100],[300,102],[100,102]]
+        r.pop('inner_region',None);r.pop('inner_regions',None)
+        for mode in ['waves','electric','clockwork','haunted']:
+            for t in [0,.125,1,2.5,4]:
+                image=render_scene(data,t,mode)
+                for x in range(120,280,4):
+                    for y in [100,101]:
+                        self.assertGreaterEqual(max(image.pixelColor(x,y).getRgb()[:3]),20,(mode,t,x,y))

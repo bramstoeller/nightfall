@@ -5,7 +5,7 @@ from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QRadialGradient,
 from .model import region
 from .animation import skeleton_frame
 from .atmosphere import clouds,curtain_fire,soft_colour,inset
-from .spectacle import STYLES as SPECTACLE_STYLES, draw_spectacle, architecture_lights
+from .spectacle import STYLES as SPECTACLE_STYLES, draw_spectacle, architecture_lights,architecture_palette
 from .routes import performance_slots,performer_pose
 
 TAU=2*math.pi
@@ -264,6 +264,8 @@ def draw_extras(p,data,r,t,mode,shape,b,actor_strength=1,allow_events=True):
     _,c1,c2,_=STYLES[mode]
     if mode in SPECTACLE_STYLES:
         draw_spectacle(p,data,r,t,mode,shape,b,c1,c2,actor_strength);return
+    if r['id'] in {'roof','roof-tip'} or r['id'].startswith('bay-trim') or r['type']=='frame':
+        c1,c2=architecture_palette(mode)
     p.save();gain=p.opacity()
     if r['id']=='facade':
         p.setCompositionMode(QPainter.CompositionMode_Screen)
