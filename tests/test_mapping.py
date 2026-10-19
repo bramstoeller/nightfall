@@ -45,9 +45,11 @@ class MappingTests(unittest.TestCase):
         for show in ['young','older']:
             a=render(d,0,show);b=render(d,120,show);self.assertEqual(bytes(a.constBits()),bytes(b.constBits()))
             a=render(d,119.9999,show);b=render(d,0,show)
-            # Rounded sprite strip edges have a tiny rasterization tolerance.
-            diff=sum(abs(x-y) for x,y in zip(bytes(a.constBits()),bytes(b.constBits())))
-            self.assertLess(diff,12000)
+            # A lit loop tolerates small subpixel/texture quantization changes;
+            # it must stay continuous without hiding the join in a black fade.
+            differences=[abs(x-y) for x,y in zip(bytes(a.constBits()),bytes(b.constBits()))]
+            self.assertLess(sum(differences)/(800*1280*3),.1)
+            self.assertLess(max(differences),20)
             for r in d['regions']:
                 if r['type']=='window':r['enabled']=False
             for t in [0,2,8,8.03,8.2,24.05,39.05,69,115.03,119.97]:

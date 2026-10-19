@@ -7,7 +7,7 @@ from .animation import skeleton_frame, young_ghost_frame
 from .effects import draw_extras, OLD,fireflies,STYLES
 from .routes import flight_route,flight_position,performance_slots,performer_pose
 from .atmosphere import texture,soft_colour,feather_mask,outset
-from .tone import brighten
+from .tone import brighten,balance_materials
 
 TAU=2*math.pi
 SHOW_SCENES={
@@ -25,19 +25,16 @@ def render_show(data,t,show='show'):
     t=t%120;scenes=SHOW_SCENES[show]
     index=max(i for i,(start,_,_) in enumerate(scenes) if start<=t)
     start,mode,offset=scenes[index]
-    if index and t-start<1:
+    if t-start<1:
         age=t-start
         # Exchange performers through a brief empty stage. Dissolving two full
         # casts put the outgoing and incoming silhouettes on top of each other.
         current=render_scene(data,t-start+offset,mode,actor_strength=smooth(max(0,2*age-1)))
         previous_start,previous_mode,previous_offset=scenes[index-1]
-        result=render_scene(data,t-previous_start+previous_offset,previous_mode,actor_strength=smooth(max(0,1-2*age)))
+        previous_age=(t-previous_start)%120
+        result=render_scene(data,previous_age+previous_offset,previous_mode,actor_strength=smooth(max(0,1-2*age)))
         p=QPainter(result);p.setOpacity(smooth(t-start));p.drawImage(0,0,current);p.end();current=result
     else:current=render_scene(data,t-start+offset,mode)
-    fade=min(smooth(t/.8),smooth((120-t)/.8))
-    if fade<1:
-        result=QImage(WIDTH,HEIGHT,QImage.Format_RGB32);result.fill(Qt.black)
-        p=QPainter(result);p.setOpacity(fade);p.drawImage(0,0,current);p.end();current=result
     return current
 
 def clamp(v,a=0,b=1): return max(a,min(b,v))
@@ -435,4 +432,4 @@ def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1):
             p.fillPath(forbidden,Qt.black)
     if debug:draw_origin(p,data)
     p.end()
-    return im if debug else brighten(im,data.get('effects',{}).get('brightness_gain',3))
+    return im if debug else balance_materials(brighten(im,data.get('effects',{}).get('brightness_gain',3)),data,mode,t)

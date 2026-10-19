@@ -7,7 +7,7 @@ from unittest.mock import patch
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 import numpy as np
 from PySide6.QtCore import QRectF,Qt
-from PySide6.QtGui import QImage,QPainterPath,QTransform
+from PySide6.QtGui import QColor,QImage,QPainterPath,QTransform
 from PySide6.QtWidgets import QApplication
 from nightfall import model
 from nightfall.renderer import render,render_scene,surface_path,SHOW_SCENES,facade_cast,box,facade_shape,figure_shape
@@ -110,12 +110,23 @@ class SpectacleTests(unittest.TestCase):
         blank=QImage(800,1280,QImage.Format_RGB32);blank.fill(0)
         with patch('nightfall.renderer.render_scene',return_value=blank) as scene:
             for show,scenes in SHOW_SCENES.items():
-                for start,_,_ in scenes[1:]:
+                for start,_,_ in scenes:
                     for frame in range(60):
                         scene.reset_mock();render({},start+frame/60,show)
                         self.assertEqual(len(scene.call_args_list),2)
                         strengths=[c.kwargs.get('actor_strength',1) for c in scene.call_args_list]
                         self.assertFalse(all(s>.001 for s in strengths),(show,start,frame))
+
+    def test_loop_join_starts_with_the_last_scene_instead_of_black(self):
+        for show in ['young','older']:
+            last_start,last_mode,last_offset=SHOW_SCENES[show][-1]
+            image=QImage(800,1280,QImage.Format_RGB32);image.fill(QColor('#71422a'))
+            with patch('nightfall.renderer.render_scene',return_value=image) as scene:
+                first=render({},0,show)
+                previous=scene.call_args_list[1]
+                self.assertEqual(previous.args[2],last_mode)
+                self.assertEqual(previous.args[1],120-last_start+last_offset)
+                self.assertEqual(first.pixelColor(400,600),QColor('#71422a'))
 
     def test_architecture_scenes_do_not_send_bands_behind_windows(self):
         data=model.default_project();data['effects'].update(architecture_strength=0,tree_strength=0)

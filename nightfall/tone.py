@@ -2,6 +2,56 @@
 import numpy as np
 
 _tables={}
+_materials={}
+
+
+def balance_materials(image,data,mode,t):
+    """White trim reflects far more than brick: attenuate after wall gain.
+
+    Keep coloured motion, remove most of the neutral white wash, and leave
+    the occupied bay ledge especially quiet so its performers stay dominant.
+    Calibration patterns deliberately bypass this video-only correction.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QImage,QPainter,QPainterPath
+    from .renderer import surface_path
+    regions=data['regions'];effects=data.get('effects',{})
+    key=(image.width(),image.height(),tuple((r['id'],r['type'],r.get('enabled',True),
+         r.get('border_width'),r.get('shape'),r.get('inner_region'),tuple(r.get('inner_regions',[])),
+         tuple(tuple(point) for point in r['projector_points'])) for r in regions))
+    if key not in _materials:
+        paths={name:QPainterPath() for name in ('trim','ledge','cloth')}
+        for r in regions:
+            if not r.get('enabled',True) or r.get('role')=='group':continue
+            name=('ledge' if r['id'].startswith('bay-trim') else
+                  'trim' if r['type'] in {'frame','edge'} or r['id']=='roof-tip' else
+                  'cloth' if r['type']=='curtain' else None)
+            if name:paths[name]=paths[name].united(surface_path(data,r))
+        paths['trim']=paths['trim'].subtracted(paths['ledge'])
+        paths['cloth']=paths['cloth'].subtracted(paths['trim']).subtracted(paths['ledge'])
+        masks={}
+        for name,shape in paths.items():
+            mask=QImage(image.size(),QImage.Format_ARGB32_Premultiplied);mask.fill(Qt.transparent)
+            p=QPainter(mask);p.setRenderHint(QPainter.Antialiasing);p.fillPath(shape,Qt.white);p.end()
+            alpha=np.frombuffer(mask.constBits(),np.uint8).reshape(-1,4)[:,3]
+            indices=np.flatnonzero(alpha)
+            masks[name]=(indices,alpha[indices].astype(np.float32)[:,None]/255)
+        if len(_materials)>=4:_materials.clear()
+        _materials[key]=masks
+    occupied=(mode in {'older','pumpkins','owls','bones','spiders','bats','embers','clockwork','electric','cheshire','shadowplay'}
+              or mode=='young' and (t%30<10 or 19<=t%30<24))
+    trim=effects.get('white_trim_level',.22)
+    levels={'trim':min(1,trim*1.5) if mode in {'waves','haunted'} else trim,
+            'ledge':effects.get('occupied_ledge_level',.08) if occupied else trim,
+            'cloth':effects.get('white_curtain_level',.30)}
+    pixels=np.frombuffer(image.bits(),np.uint8).reshape(-1,4)
+    for name,(indices,coverage) in _materials[key].items():
+        if not len(indices):continue
+        original=pixels[indices,:3].astype(np.float32)
+        target=original if name=='cloth' else original-original.min(axis=1)[:,None]*.90
+        target=target*levels[name]
+        pixels[indices,:3]=np.rint(original+(target-original)*coverage).clip(0,255).astype(np.uint8)
+    return image
 
 def brighten(image,gain):
     if gain<=1:return image
