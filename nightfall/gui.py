@@ -437,10 +437,12 @@ class MainWindow(QMainWindow):
         if not Path(filename).is_file():raise RuntimeError('The selected video does not exist.')
         self.stop_video(cancel_tour=False);self.playing=False;self.external_filename=str(Path(filename).resolve());self.external_blackout=False
         self.show_external_cover()
-        self.external_video.start(self.external_filename,screen,screens.index(screen),self.vlc_program)
         self.video_button.setText('Stop video');self.projector_button.setText('Projector off')
         self.playback_status.setText('VLC · '+self.screens.currentText()+' · fullscreen · loop')
-        self.note('VLC plays directly on the projector. Stop video returns to a black screen; Projector on restores the alignment pattern.')
+        # On Windows FailedToStart can arrive inside QProcess.start(). Prepare
+        # controls first so that the failure handler's reset remains visible.
+        self.external_video.start(self.external_filename,screen,screens.index(screen),self.vlc_program)
+        if self.external_filename is not None:self.note('VLC plays directly on the projector. Stop video returns to a black screen; Projector on restores the alignment pattern.')
     def resume_external_video(self):
         filename=self.external_filename
         if filename is not None:self.play_animation(filename)

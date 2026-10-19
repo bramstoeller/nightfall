@@ -112,12 +112,21 @@ class ExternalPlaybackTests(unittest.TestCase):
         finally:
             other.kill();other.waitForFinished(3000)
 
+    def test_synchronous_failed_start_resets_the_controls(self):
+        # Windows may emit FailedToStart before QProcess.start() returns.
+        with patch.object(self.w.external_video,'start',side_effect=lambda *args:self.w.external_video.stopped.emit()):
+            self.w.play_animation(str(self.movie))
+        self.assertIsNone(self.w.external_filename)
+        self.assertEqual(self.w.video_button.text(),'Video')
+        self.assertEqual(self.w.projector_button.text(),'Projector on')
+        self.assertEqual(self.w.playback_status.text(),'')
+
     def test_portable_videos_require_matching_geometry_effects_and_renderer(self):
         directory=self.root/'videos';directory.mkdir();name='halloween-young-800x1280.mp4'
         (directory/name).write_bytes(b'fixture')
         manifest={'cache_key':render_cache.folder(self.w.data).name,'full_loop':True,'files':[name]}
         (directory/'render-manifest.json').write_text(json.dumps(manifest))
-        self.assertEqual(render_cache.exported_video(self.w.data,'young',self.root/'house.json'),directory/name)
+        self.assertEqual(render_cache.exported_video(self.w.data,'young',self.root/'house.json'),(directory/name).resolve())
         changed=copy.deepcopy(self.w.data);changed['effects']['brightness_gain']=1.7
         self.assertIsNone(render_cache.exported_video(changed,'young',self.root/'house.json'))
         changed=copy.deepcopy(self.w.data);changed['regions'][0]['projector_points'][0][0]+=1
