@@ -289,6 +289,9 @@ def draw_extras(p,data,r,t,mode,shape,b,actor_strength=1):
                 area,_=performer_pose(slot,t)
                 p.save();p.setClipPath(safe,Qt.IntersectClip)
                 p.setOpacity(gain*appearance*actor_strength);cheshire(p,area,cat_time);p.restore()
+        if mode in {'older','embers','shadowplay','cheshire'}:
+            from .house_show import older_house
+            p.setOpacity(gain);older_house(p,data,t,mode,actor_strength)
     elif r['id']=='roof' or r['id'].startswith('bay-trim'):
         pulse=.55+.35*math.sin(TAU*t/12+b.x()*.01)
         soft_colour(p,shape,c1,pulse)

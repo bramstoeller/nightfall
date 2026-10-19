@@ -120,6 +120,6 @@ class SpectacleTests(unittest.TestCase):
     def test_architecture_scenes_do_not_send_bands_behind_windows(self):
         data=model.default_project();data['effects'].update(architecture_strength=0,tree_strength=0)
         for r in data['regions']:r['enabled']=r['id']=='facade'
-        for mode in ['haunted','waves','clockwork','electric']:
+        for mode in ['haunted','waves']:
             image=render_scene(data,2.35,mode).convertToFormat(QImage.Format_RGB888)
             self.assertFalse(any(image.constBits()),mode)

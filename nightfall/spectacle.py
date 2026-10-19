@@ -211,7 +211,10 @@ def character_slots(shape,b,kind,count):
     width,height=(110,158) if kind in {'skeleton','young-skeleton','young-ghost'} else (150,130) if kind in {'bat','owl'} else (144,144)
     # Large readable silhouettes suit distant brickwork. A cramped patch omits
     # another performer instead of turning it into a tiny floating copy.
-    return performance_slots(shape,b,[(width,height,3,4,0 if kind=='skeleton' else 3)]*count)
+    if kind=='spider':spec=(116,105,0,24,0)
+    elif kind=='bat':spec=(144,104,10,10,0)
+    else:spec=(width,height,3,4,0 if kind=='skeleton' else 3)
+    return performance_slots(shape,b,[spec]*count)
 
 
 def character_swarm(p,shape,b,t,kind,count,data=None):
@@ -338,6 +341,13 @@ def draw_spectacle(p,data,r,t,mode,shape,b,c1,c2,actor_strength=1):
                     'spiders':('spider',4),'wisps':('wisp',3),'owls':('owl',3)}.get(mode,(None,0))
         if kind and actor_strength>.001:
             p.setOpacity(p.opacity()*actor_strength);character_swarm(p,safe,b,t,kind,count,data)
+            # The house actions receive the same fade, once, as the main cast.
+            if mode in {'bones','bats','spiders'}:
+                from .house_show import older_house
+                older_house(p,data,t,mode,1)
+        elif mode in {'electric','clockwork'}:
+            from .house_show import older_house
+            older_house(p,data,t,mode,actor_strength)
     elif r['id']=='roof' or r['type'] in {'frame','edge'}:
         architecture_lights(p,r,surface_path(data,r),t,mode,c1,c2)
     elif r['type']=='curtain' or (r['type']=='window' and r.get('paper_screen',False)):

@@ -12,6 +12,7 @@ from .atmosphere import shape_key
 TAU=2*math.pi
 _circuits={}
 _ledges={}
+_arcs={}
 
 
 @dataclass(frozen=True)
@@ -22,14 +23,14 @@ class Circuit:
     size: tuple
 
 
-def window_circuit(data,rid,size):
+def window_circuit(data,rid,size,clearance=7):
     """A full silhouette follows a closed walk around the physical window."""
     from .renderer import facade_shape,figure_shape,surface_path
     facade=model.region(data,'facade');safe=figure_shape(data,facade_shape(data,facade))
     window=surface_path(data,model.region(data,rid)).boundingRect()
-    key=(shape_key(safe),rid,tuple(window.getRect()),size)
+    key=(shape_key(safe),rid,tuple(window.getRect()),size,clearance)
     if key in _circuits:return _circuits[key]
-    width,height=size;hw,hh=width/2+7,height/2+7
+    width,height=size;hw,hh=width/2+clearance,height/2+clearance
     bounds=safe.boundingRect();step=6
     def fits(x,y):return safe.contains(QRectF(x-hw,y-hh,hw*2,hh*2))
     nodes={(x,y) for x in range(math.ceil(bounds.left()+hw),math.floor(bounds.right()-hw)+1,step)
@@ -92,7 +93,84 @@ def circuit_rect(circuit,t,phase=0,period=30):
 def ghost_circuits(data):
     # The upper-right corner is narrow between the real window and roof.
     # Coarse, solid cloth silhouettes stay readable while fitting that passage.
-    return (window_circuit(data,'attic',(44,52)),window_circuit(data,'right',(36,46)))
+    return (window_circuit(data,'attic',(44,52),5),window_circuit(data,'right',(36,44),3))
+
+
+def attic_flight(data,t,period=12):
+    """A broad bat swoops over the attic, clear of the main wall performer."""
+    from .renderer import facade_shape,figure_shape,surface_path
+    safe=figure_shape(data,facade_shape(data,model.region(data,'facade')))
+    window=surface_path(data,model.region(data,'attic')).boundingRect()
+    key=(shape_key(safe),tuple(window.getRect()))
+    if key not in _arcs:
+        width,height=58,40
+        left=(window.left()-width/2-8,window.top()-height/2)
+        right=(window.right()+width/2+8,left[1])
+        crest=(window.center().x(),window.top()-120)
+        def rect_at(u):
+            x=(1-u)**2*left[0]+2*u*(1-u)*crest[0]+u*u*right[0]
+            y=(1-u)**2*left[1]+2*u*(1-u)*crest[1]+u*u*right[1]
+            return QRectF(x-width/2,y-height/2,width,height)
+        samples=tuple(rect_at(i/240) for i in range(241))
+        if len(_arcs)>24:_arcs.clear()
+        _arcs[key]=samples if all(safe.contains(r.adjusted(-5,-5,5,5)) for r in samples) else ()
+    samples=_arcs[key]
+    if not samples:return None
+    u=(.5-.5*math.cos(TAU*t/period))*240
+    i=min(239,int(u));a,b=samples[i],samples[i+1];fraction=u-i
+    return a.translated((b.x()-a.x())*fraction,(b.y()-a.y())*fraction)
+
+
+def watching_eyes(p,rect,t):
+    """Two oversized eyes follow the moving frame lights on the brickwork."""
+    p.save();p.setCompositionMode(QPainter.CompositionMode_SourceOver);p.setPen(Qt.NoPen)
+    blink=1-.92*math.exp(-((t%5-3.5)/.14)**2)
+    for side in (-1,1):
+        x=rect.center().x()+side*rect.width()*.23;y=rect.center().y()
+        width=rect.width()*.36;height=rect.height()*.30*blink
+        p.setBrush(QColor('#efffcc'));p.drawEllipse(QRectF(x-width/2,y-height/2,width,height))
+        p.setBrush(QColor('#130923'))
+        look=width*.20*math.sin(TAU*t/5)
+        p.drawEllipse(QRectF(x+look-width*.11,y-height*.44,width*.22,height*.88))
+    p.restore()
+
+
+def older_house(p,data,t,mode,strength):
+    """Separated upper, middle and ledge actions keep the entire house alive."""
+    from .renderer import facade_cast
+    from .spectacle import draw_actor,character_swarm
+    from .routes import performer_pose
+    safe,slots=facade_cast(data)
+    p.save();p.setClipPath(safe,Qt.IntersectClip)
+    p.setCompositionMode(QPainter.CompositionMode_SourceOver);p.setOpacity(p.opacity()*strength)
+    base=p.opacity()
+    # This route is wholly above the attic; it cannot cross the central cast.
+    if mode in {'older','bats','spiders','bones','shadowplay'}:
+        target=attic_flight(data,t,8 if mode in {'bats','shadowplay'} else 12)
+        if target is not None:draw_actor(p,'bat',t,target,1)
+    if mode in {'electric','clockwork'} and slots and slots[0] is not None:
+        watching_eyes(p,performer_pose(slots[0],t)[0],t)
+    if mode=='electric':
+        route=ghost_circuits(data)[1]
+        if route is not None:simple_ghost(p,circuit_rect(route,t,period=6),t,'#e9fff0')
+    if mode=='embers':character_swarm(p,safe,safe.boundingRect(),t,'wisp',1,data)
+    # These actors stand on the measured erker edge, far below the central
+    # silhouettes. Each cue has a different combination rather than clones.
+    actor=None
+    if mode=='older':
+        actor='owl' if t%24<8 else 'pumpkin' if t%24<16 else 'skeleton'
+        age=t%8;p.setOpacity(base*min(1,age/.5,(8-age)/.5))
+    elif mode in {'embers','bones','spiders'}:actor='pumpkin'
+    elif mode in {'bats','cheshire','shadowplay'}:actor='owl'
+    elif mode=='clockwork':actor='skeleton'
+    if actor=='pumpkin':ledge_pumpkins(p,data,t)
+    elif actor:
+        size=(120,76) if actor=='owl' else (70,86)
+        for rect in ledge_slots(data,1,size):
+            hop=5*math.sin(math.pi*(t%2))**2 if actor=='skeleton' else 0
+            target,_=grounded_actor_rect(actor,t,rect,hop=hop)
+            draw_actor(p,actor,t,target)
+    p.restore()
 
 
 def simple_ghost(p,rect,t,tint,variant=0):

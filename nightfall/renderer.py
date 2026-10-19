@@ -13,8 +13,8 @@ TAU=2*math.pi
 SHOW_SCENES={
     'young':[(0,'young',0),(30,'young-skeletons',0),(42,'pumpkins',0),(54,'waves',0),
              (66,'young-ghosts',0),(78,'owls',0),(90,'haunted',0),(102,'wisps',2),(114,'cheshire',3)],
-    'older':[(0,'older',0),(24,'bats',0),(36,'electric',0),(48,'spiders',0),
-             (60,'clockwork',0),(72,'embers',0),(84,'bones',0),(96,'cheshire',1),(108,'shadowplay',0)],
+    'older':[(0,'older',0),(24,'bats',0),(36,'electric',0),(42,'spiders',0),
+             (60,'clockwork',0),(66,'embers',0),(78,'bones',0),(96,'cheshire',1),(108,'shadowplay',0)],
     'show':[(0,'bones',0),(10,'pumpkins',0),(20,'waves',0),(30,'wisps',0),
             (40,'owls',0),(50,'haunted',0),(60,'bats',0),(70,'spiders',0),
             (80,'clockwork',0),(90,'electric',0),(100,'embers',0),(110,'cheshire',1)],
@@ -188,14 +188,19 @@ def living_tree(p,b,t,strength,breathing=False):
 def draw_tree(p,data,r,t):
     """Feather the foreground and its blackout together, preserving leaf detail."""
     shape=path(r['projector_points']);b=box(r['projector_points'])
-    mask,rect=feather_mask(shape,24,opaque_interior=True)
+    # A soft tree texture must never act as a translucent wall blackout.
+    # The physical foreground blocks the wall completely, including its edge.
+    p.save();p.setOpacity(1);p.fillPath(shape,Qt.black);p.restore()
+    from .atmosphere import inset
+    effect_shape=inset(shape,r.get('effect_inset',0))
+    mask,rect=feather_mask(effect_shape,24,opaque_interior=True)
     layer=QImage(rect.size(),QImage.Format_ARGB32_Premultiplied);layer.fill(Qt.black)
     q=QPainter(layer);q.setRenderHints(QPainter.Antialiasing|QPainter.SmoothPixmapTransform)
     q.translate(-rect.x(),-rect.y());q.setOpacity(r.get('gain',1)*.35)
     effects=data.get('effects',{})
     if r.get('enabled',True):
         living_tree(q,b,t,effects.get('tree_strength',.22)*.35,effects.get('tree_breathing',False))
-        fireflies(q,shape,b,t,12)
+        fireflies(q,effect_shape,b,t,12)
     q.resetTransform();q.setOpacity(1)
     q.setCompositionMode(QPainter.CompositionMode_DestinationIn);q.drawImage(0,0,mask);q.end()
     p.save();p.setOpacity(1);p.drawImage(rect.topLeft(),layer);p.restore()
@@ -270,6 +275,7 @@ def facade_shape(data,r,margin=0):
         # Smoke may meet the fascia; subtracting it here feathers a needless
         # black band into the brickwork above it. Its own glow is drawn later.
         if (q['type'] in ('window','frame','stage') and not q['id'].startswith('bay-trim')) or (q['id']=='bay' and not has_bay_front):shape=shape.subtracted(surface_path(data,q))
+        if q['type']=='occluder':shape=shape.subtracted(outset(path(q['projector_points']),3))
     return shape
 
 def figure_shape(data,shape):
@@ -308,17 +314,20 @@ def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1):
             for x,y in r['projector_points']:p.drawEllipse(QPointF(x,y),2,2)
         p.end();return im
     if mode=='alignment':
-        for i,a in enumerate(data.get('alignment',{}).get('anchors',[])):
-            if a.get('name')=='Window corner' and origin_point(data) is not None:continue
-            x,y=a['point'];p.setPen(QPen(QColor(a.get('color','#ffffff')),2));p.setBrush(Qt.NoBrush)
-            p.drawLine(QPointF(x-10,y),QPointF(x+10,y));p.drawLine(QPointF(x,y-10),QPointF(x,y+10));p.drawEllipse(QPointF(x,y),5,5)
-            p.drawText(QPointF(x+13,y+14),str(i+1))
-        draw_origin(p,data);p.end();return im
+        p.setPen(QPen(Qt.white,2));p.setBrush(Qt.NoBrush)
+        for rid in ('attic','right'):
+            frame=next((r for r in data['regions'] if r['id']=='frame-'+rid),region(data,rid))
+            p.drawPath(path(frame['projector_points']))
+        roof=region(data,'roof')['projector_points']
+        p.drawPolyline(polygon(roof[:3] if len(roof)==6 else roof))
+        p.end();return im
     debug=mode in ('wireframe','fills','selected')
+    visible={r['id'] for r in alignment_shapes(data)} if mode=='wireframe' else None
     t=t%120;old=mode in OLD;beat=TAU*t/4
     for r in data['regions']:
         if r.get('role')=='group' and mode!='selected':continue
         if debug:
+            if visible is not None and r['id'] not in visible:continue
             if mode=='selected' and r['id']!=selected:continue
             col=QColor(r['color']);p.setOpacity(1);p.setPen(QPen(col,2 if r['id']!=selected else 3))
             p.setBrush(Qt.NoBrush)
@@ -334,10 +343,15 @@ def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1):
         main_painter=p
         paint_shape=shape
         if r['id']=='facade':
-            paint_shape=facade_shape(data,r,10)
+            paint_shape=facade_shape(data,r)
             for exclusion in data.get('exclusions',[]):
                 if not exclusion.get('enabled',True):continue
-                if exclusion['id'] not in r.get('cutout_ids',[]):paint_shape=paint_shape.subtracted(path(exclusion['projector_points']))
+                if exclusion['id'] not in r.get('cutout_ids',[]):
+                    forbidden=path(exclusion['projector_points'])
+                    # Shared roof/wall vertices need the same clearance used
+                    # by the final blackout, avoiding coincident-edge booleans.
+                    if exclusion['id']=='exclusion-roof-inner':forbidden=outset(forbidden,3)
+                    paint_shape=paint_shape.subtracted(forbidden)
             # Fade every wall effect together, including sparks and lightning.
             wall_mask,wall_rect=feather_mask(paint_shape,14,opaque_interior=True)
             wall_layer=QImage(wall_rect.size(),QImage.Format_ARGB32_Premultiplied);wall_layer.fill(Qt.transparent)

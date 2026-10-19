@@ -6,13 +6,25 @@ import unittest
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QImage,QPainter
 from PySide6.QtWidgets import QApplication
-from nightfall.house_show import window_circuit,circuit_rect,simple_ghost
+from nightfall.house_show import window_circuit,circuit_rect,simple_ghost,attic_flight
 from nightfall.renderer import facade_shape,figure_shape
 
 APP=QApplication.instance() or QApplication([])
 
 
 class HouseStoryTests(unittest.TestCase):
+    def test_attic_bat_swoops_across_the_window_without_entering_glass(self):
+        facade={'id':'facade','type':'surface','projector_points':[[50,50],[750,50],[750,1150],[50,1150]]}
+        data={'regions':[facade,{'id':'attic','type':'window','projector_points':[[280,230],[320,230],[320,330],[280,330]]}],'exclusions':[]}
+        safe=figure_shape(data,facade_shape(data,facade));positions=[]
+        for frame in range(720):
+            rect=attic_flight(data,frame/60)
+            self.assertIsNotNone(rect)
+            self.assertTrue(safe.contains(rect.adjusted(-3,-3,3,3)))
+            positions.append(rect.center().x())
+        self.assertGreater(max(positions)-min(positions),100)
+        self.assertEqual(attic_flight(data,0),attic_flight(data,12))
+
     def test_full_window_orbits_keep_the_complete_figure_on_brick(self):
         facade={'id':'facade','type':'surface','projector_points':[[50,50],[750,50],[750,1150],[50,1150]]}
         for rid,points in [('attic',[[270,230],[330,230],[330,330],[270,330]]),

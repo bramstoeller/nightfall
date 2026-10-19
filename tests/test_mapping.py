@@ -32,15 +32,14 @@ class MappingTests(unittest.TestCase):
         shape=path(model.region(d,'right')['projector_points']);im=render(d,10,'young')
         b=shape.boundingRect();self.assertTrue(any(im.pixelColor(x,y).lightness()>80 for x in range(int(b.left())+3,int(b.right())-3,2) for y in range(int(b.top())+3,int(b.bottom())-3,2) if shape.contains(QPointF(x,y))))
         model.region(d,'tree')['enabled']=False
-        from nightfall.atmosphere import inset
         for show in ['young','older']:
             im=render(d,8.03,show);tree=path(model.region(d,'tree')['projector_points'])
-            # The centre blacks out the facade; the 24px leaf boundary fades.
-            safe=inset(tree,26)
+            # The foreground boundary must block the wall as fully as its
+            # centre; a feathered leaf effect cannot reveal blue wall light.
             b=tree.boundingRect()
             for x in range(int(b.left())+3,int(b.right())-3,5):
                 for y in range(int(b.top())+3,int(b.bottom())-3,5):
-                    if safe.contains(QRectF(x-2,y-2,4,4)):self.assertEqual(im.pixelColor(x,y).lightness(),0)
+                    if tree.contains(QRectF(x-2,y-2,4,4)):self.assertEqual(im.pixelColor(x,y).lightness(),0)
     def test_loop_and_glass(self):
         d=model.default_project()
         for show in ['young','older']:

@@ -65,6 +65,8 @@ Smoke uses a fixed 50% strength. The old lamp-post placeholder is removed when o
 
 Glass, the bay front and exclusion masks stay black as configured. A window needs a reflective screen before it can receive projection. Save your aligned mapping and matching `.alignment.png` together. Reference images are embedded when a loaded project is saved, so personal projects remain portable.
 
+The alignment pattern contains only the outer attic frame, right window frame and outer roof edge, in white. Match these to the bright physical trim; there are no numbered anchors or origin markers. Hidden contours are also omitted from the exported wireframe. The foreground tree blocks wall effects completely, including its boundary; its own leaf animation stays inside that blackout.
+
 Packaged builds keep render caches in `%LOCALAPPDATA%/Nightfall/renders` on Windows and `${XDG_DATA_HOME:-~/.local/share}/Nightfall/renders` on Linux. Source runs use `renders/` in the project directory.
 
 Completed shows can also travel in a `videos/` folder beside the saved house mapping. Keep their `render-manifest.json`: Nightfall automatically uses these videos, including for the scheduled tour, when the geometry, effects, source code and assets match. Editing the map invalidates that match.
@@ -88,6 +90,8 @@ Both two-minute exports contain changing scenes with one-second background disso
 Each performer gets a separate clear patch of brickwork with enough room for its complete pose, tilt and movement. Large silhouettes, fixed proportions and broad bright architectural accents suit distant projection on dim brickwork. A cramped wall omits additional performers; the background tree is subdued. Window, tree and exclusion clearance are checked throughout the motion. During a scene change, the outgoing cast fades out before the next cast appears, while background colours dissolve smoothly. Loose horizontal light bands are removed.
 
 The children's opening is a small play using the actual house: a skeleton greets visitors from the bay ledge, simple ivory and mint ghosts follow closed routes around the attic and right window, candles flicker on the reflective curtain strips, and two pumpkins take turns hopping on the bay ledge. The later owl perches on that ledge too. Actor feet and pumpkin bases are anchored to the measured support line. Window orbits check the whole silhouette against masonry, glass, tree and exclusion masks; a blocked passage omits that flight. The spiders hang on threads from the actual gable edge, and the old line-drawn bats are replaced by textured, articulated bats with mirrored wings.
+
+The older show combines separate upper-wall, central and ledge actions: a bat swoops over the attic, a spider descends on its thread, the ledge alternates between an owl, pumpkins and a dancing skeleton, and large eyes follow the moving lights. A spirit circles the right frame during the electric cue. The electric and clockwork cues last six seconds each; flames and a wisp, dancing bones and the disappearing cat supply the longer scenes.
 
 Character motion uses full five-second cycles evaluated at 60 fps: **300 rendered frames per cycle**. The image-generated textures supply the detail; articulated bones, shoulders and legs, squash, turns and ribbon deformation supply continuous in-between motion. The source images and exact prompts are documented in [character animation assets](assets/ANIMATION-PROMPTS.md).
 
