@@ -106,19 +106,18 @@ def bat(p,x,y,size,t,phase,c):
     p.setBrush(color(c,190));flap=.45+.45*math.sin(TAU*t*2+phase)
     wing=QPainterPath();wing.moveTo(0,-size*.15)
     for sign in [-1,1]:
+        wing.moveTo(0,-size*.15)
         wing.lineTo(sign*size,-size*flap)
         wing.quadTo(sign*size*.78,-size*.02,sign*size*.72,size*.2)
         wing.quadTo(sign*size*.5,-size*.02,sign*size*.35,size*.22)
-        wing.lineTo(0,size*.1)
-    wing.closeSubpath();p.drawPath(wing);p.setBrush(color('#ffffff'));p.drawEllipse(QPointF(0,0),size*.11,size*.22)
+        wing.lineTo(0,size*.1);wing.closeSubpath()
+    p.drawPath(wing);p.setBrush(color('#ffffff'));p.drawEllipse(QPointF(0,0),size*.11,size*.22)
     p.restore()
 
 def bats(p,b,t,c,shape=None):
     if shape is not None:
-        for i,slot in enumerate(performance_slots(shape,b,[(144,112,3,4,3)]*2)):
-            if slot is None:continue
-            rect,_=performer_pose(slot,t)
-            bat(p,rect.center().x(),rect.center().y(),rect.width()*.38,t,i,c)
+        from .spectacle import character_swarm
+        character_swarm(p,shape,b,t,'bat',2)
         return
     for i in range(5):
         a=TAU*t/[12,15,20][i%3]+i*1.7
@@ -277,14 +276,15 @@ def draw_extras(p,data,r,t,mode,shape,b,actor_strength=1):
             from .renderer import facade_shape,figure_shape
             p.setOpacity(gain*.9*actor_strength);bats(p,b,t,c1,figure_shape(data,facade_shape(data,r)))
         if mode=='young':
-            p.setOpacity(gain*actor_strength);dancer(p,data,t)
+            from .house_show import young_house
+            p.setOpacity(gain);young_house(p,data,t,actor_strength)
             p.setOpacity(gain);fireflies(p,shape,b,t,10)
-        if mode in {'cheshire','young','older'}:
+        if mode in {'cheshire','older'}:
             # The clear brickwork between attic and upper windows is the stage.
             from .renderer import facade_cast
             safe,slots=facade_cast(data);slot=slots[0]
-            cat_time=t if mode=='cheshire' else t-18 if mode=='young' else t-8
-            appearance=1 if mode=='cheshire' else envelope(t,18 if mode=='young' else 8,20,40)
+            cat_time=t if mode=='cheshire' else t-8
+            appearance=1 if mode=='cheshire' else envelope(t,8,20,40)
             if slot is not None:
                 area,_=performer_pose(slot,t)
                 p.save();p.setClipPath(safe,Qt.IntersectClip)
@@ -301,6 +301,9 @@ def draw_extras(p,data,r,t,mode,shape,b,actor_strength=1):
         halo(p,b.center().x(),b.center().y(),b.height()*.6,c2,190)
     elif r['id']=='attic':
         p.setOpacity(gain);attic_magic(p,r,t,c1,c2,mode)
+    elif r['type']=='curtain' and r.get('enabled',True) and mode=='young':
+        from .house_show import curtain_candles
+        curtain_candles(p,r,t)
     elif r['type']=='curtain' and r.get('enabled',True) and mode in {'aurora','embers'}:
         if mode=='embers':
             curtain_fire(p,r,t);p.restore();return

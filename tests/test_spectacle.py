@@ -6,18 +6,25 @@ import unittest
 from unittest.mock import patch
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 import numpy as np
-from PySide6.QtCore import QRectF
+from PySide6.QtCore import QRectF,Qt
 from PySide6.QtGui import QImage,QPainterPath,QTransform
 from PySide6.QtWidgets import QApplication
 from nightfall import model
 from nightfall.renderer import render,render_scene,surface_path,SHOW_SCENES,facade_cast,box,facade_shape,figure_shape
-from nightfall.spectacle import actor_frame, ACTOR_FRAMES, ACTOR_BOUNDS, STYLES,character_slots
+from nightfall.spectacle import actor_frame, ACTOR_FRAMES, ACTOR_BOUNDS, STYLES,character_slots,flying_parts
 from nightfall.routes import performance_slots,performer_pose
 
 APP=QApplication.instance() or QApplication([])
 
 
 class SpectacleTests(unittest.TestCase):
+    def test_bat_wings_are_mirrored_and_do_not_contain_a_second_face(self):
+        left,right,body=flying_parts('bat')
+        mirrored=left.flipped(Qt.Horizontal)
+        self.assertEqual(bytes(mirrored.constBits()),bytes(right.constBits()))
+        for x in range(110,145):
+            for y in range(75,135):self.assertEqual(left.pixelColor(x,y).alpha(),0)
+
     def test_eight_characters_have_complete_300_frame_loops(self):
         for name in ACTOR_BOUNDS:
             with self.subTest(character=name):

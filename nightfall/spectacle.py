@@ -30,9 +30,9 @@ STYLES={
 ATLAS_NAMES={name:f'{name}-atlas-v1' for name in ['bat','pumpkin','spider','wisp','owl']}
 # Union of every pose and all three variants, with a transparent safety border.
 # These fixed source viewports preserve each character's original proportions.
-ACTOR_BOUNDS={'skeleton':(60,6,136,212),'bat':(10,39,223,200),
+ACTOR_BOUNDS={'skeleton':(60,6,136,212),'bat':(10,39,237,200),
               'owl':(18,58,216,173),'pumpkin':(22,16,196,208),
-              'spider':(28,36,202,176),'wisp':(11,27,224,205),
+              'spider':(24,32,209,180),'wisp':(11,27,224,205),
               'young-skeleton':(32,14,192,228),'young-ghost':(32,14,192,228)}
 
 
@@ -63,10 +63,12 @@ def flying_parts(kind):
     source=atlas_cell(kind,1)
     # The generated spread-wing pose supplies the texture. Each wing rotates
     # about its shoulder on every frame; there is no four-frame flipbook.
-    left=polygon([(0,0),(.34,0),(.44,.43),(.53,.54),(.43,.76),(.30,1),(0,1)])
+    left=polygon([(0,0),(.30,0),(.34,.40),(.40,.54),(.36,.72),(.24,1),(0,1)]) if kind=='bat' else polygon([(0,0),(.34,0),(.44,.43),(.53,.54),(.43,.76),(.30,1),(0,1)])
     right=QTransform(-1,0,0,1,1,0).map(left)
     body=QPainterPath();body.addEllipse(QRectF(.31,.22 if kind=='bat' else .34,.38,.76 if kind=='bat' else .64))
-    return masked(source,left),masked(source,right),masked(source,body)
+    left_image=masked(source,left)
+    right_image=left_image.flipped(Qt.Horizontal) if kind=='bat' else masked(source,right)
+    return left_image,right_image,masked(source,body)
 
 
 @lru_cache(maxsize=9)
@@ -136,9 +138,13 @@ def walking_spider(p,t,variant):
             root=(sign*25,-23+leg*19)
             knee=(sign*(67+10*math.cos(phase)),-64+leg*38+12*math.sin(phase))
             foot=(sign*(100+8*math.cos(phase)),-83+leg*47+18*math.sin(phase))
-            path=QPainterPath(QPointF(*root));path.lineTo(*knee);path.lineTo(*foot)
-            for width,c in [(11,'#43205d'),(6,'#8f42c5'),(1.5,'#e9a8ff')]:
+            path=QPainterPath(QPointF(*root))
+            path.quadTo((root[0]+knee[0])*.5,root[1]-12,*knee)
+            path.quadTo(knee[0]+sign*12,(knee[1]+foot[1])*.5,*foot)
+            for width,c in [(19,'#542070'),(12,'#bd7df1'),(4,'#ffe0ff')]:
                 p.setPen(QPen(QColor(c),width,Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin));p.drawPath(path)
+            p.setPen(Qt.NoPen);p.setBrush(QColor('#d4a2ff'))
+            p.drawEllipse(QPointF(*knee),5,5)
     p.restore()
     p.drawImage(QRectF(9,8,238,238),masked_spider_body())
 
@@ -208,15 +214,21 @@ def character_slots(shape,b,kind,count):
     return performance_slots(shape,b,[(width,height,3,4,0 if kind=='skeleton' else 3)]*count)
 
 
-def character_swarm(p,shape,b,t,kind,count):
+def character_swarm(p,shape,b,t,kind,count,data=None):
     p.save();p.setClipPath(shape,Qt.IntersectClip)
     for i,slot in enumerate(character_slots(shape,b,kind,count)):
         if slot is None:continue
         rect,turn=performer_pose(slot,t)
         if kind=='spider':
-            # Keep a thread local to its spider's room as well.
             p.setPen(QPen(colour('#dfbcff',180),2))
-            p.drawLine(QPointF(rect.center().x(),slot.envelope[1]),rect.center())
+            top=slot.envelope[1]
+            if data is not None:
+                facade=next(r for r in data['regions'] if r['id']=='facade')
+                pts=facade['projector_points'];x=rect.center().x()
+                hits=[a[1]+(c[1]-a[1])*(x-a[0])/(c[0]-a[0]) for a,c in zip(pts,pts[1:]+pts[:1])
+                      if abs(c[0]-a[0])>.001 and min(a[0],c[0])<=x<=max(a[0],c[0])]
+                if hits:top=min(hits)+4
+            p.drawLine(QPointF(rect.center().x(),top),rect.center())
         draw_actor(p,kind,t+i*.4,rect,i%3,turn)
     p.restore()
 
@@ -311,11 +323,21 @@ def draw_spectacle(p,data,r,t,mode,shape,b,c1,c2,actor_strength=1):
     p.save();p.setClipPath(surface_path(data,r),Qt.IntersectClip)
     if r['id']=='facade':
         safe=figure_shape(data,facade_shape(data,r));p.setClipPath(safe,Qt.IntersectClip)
+        if mode=='pumpkins':
+            from .house_show import ledge_pumpkins
+            p.setOpacity(p.opacity()*actor_strength);ledge_pumpkins(p,data,t);p.restore();return
+        if mode=='owls':
+            from .house_show import ledge_slots,grounded_actor_rect
+            slots=ledge_slots(data,1,(120,76))
+            if slots:
+                p.setOpacity(p.opacity()*actor_strength)
+                target,_=grounded_actor_rect('owl',t,slots[0])
+                draw_actor(p,'owl',t,target);p.restore();return
         kind,count={'young-skeletons':('young-skeleton',2),'young-ghosts':('young-ghost',2),
                     'bones':('skeleton',3),'bats':('bat',4),'pumpkins':('pumpkin',3),
                     'spiders':('spider',4),'wisps':('wisp',3),'owls':('owl',3)}.get(mode,(None,0))
         if kind and actor_strength>.001:
-            p.setOpacity(p.opacity()*actor_strength);character_swarm(p,safe,b,t,kind,count)
+            p.setOpacity(p.opacity()*actor_strength);character_swarm(p,safe,b,t,kind,count,data)
     elif r['id']=='roof' or r['type'] in {'frame','edge'}:
         architecture_lights(p,r,surface_path(data,r),t,mode,c1,c2)
     elif r['type']=='curtain' or (r['type']=='window' and r.get('paper_screen',False)):

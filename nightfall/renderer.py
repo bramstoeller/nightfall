@@ -353,10 +353,6 @@ def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1):
                 if mode in {'older','moonlight'} and cast and cast[0] is not None:
                     p.setOpacity(gain*.85*reveal*actor_strength);fly(p,flight_shape,b,t,1,True,kind='older-wraith',slot=cast[0])
             elif mode=='young':
-                for actor,slot in enumerate(cast):
-                    if slot is None:continue
-                    p.setOpacity(gain*actor_strength*cycle(t,11,7,1.2))
-                    fly(p,flight_shape,b,t,actor,kind='young-ghost',slot=slot)
                 p.setOpacity(gain*.8);stars(p,b,t,10,'#ffe89a')
         elif r['type']=='edge':
             phase=t%30;a=sum(cycle(t,s,3) for s in [11,41,71,101]);p.setOpacity(gain*a);p.fillRect(QRectF(x+clamp((phase-11)/3)*w-12,y,24,h),QColor('#ba91dd' if old else '#ffca80'))
@@ -379,7 +375,7 @@ def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1):
             physical_ratio=im_sprite.width()/im_sprite.height()*h/max(w,1)
             height=min(.90,.76/max(physical_ratio,.01));width=height*physical_ratio
             p.drawImage(QRectF((1-width)/2,(1-height)/2+float_y,width,height),im_sprite)
-        elif r['type']=='curtain' and mode in {'young','older','moonlight','shadowplay'}:
+        elif r['type']=='curtain' and mode in {'older','moonlight','shadowplay'}:
             if any(q['id']==r.get('parent') and q.get('paper_screen',False) for q in data['regions']):p.restore();continue
             idx=0 if r['id']=='curtain-left' else 1 if r['id']=='curtain-r1' else 2;a=max(cycle(t,s+idx*2,7) for s in [2,22,42,62,82,102]);p.setOpacity(gain*a)
             if a>.001:
