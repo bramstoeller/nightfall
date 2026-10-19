@@ -264,7 +264,10 @@ def architecture_lights(p,r,shape,t,mode,c1,c2):
     p.setCompositionMode(QPainter.CompositionMode_Screen)
     route,length,samples=guide(r);b=shape.boundingRect();phase=(sum(ord(c) for c in r['id'])%31)/5
     motion={'haunted':'breath','waves':'wave','clockwork':'rotate','electric':'flicker'}.get(mode)
-    if motion is None:motion=['chase','breath','wave'][int(t//10)%3]
+    if motion is None:
+        motion={'young':'chase','older':'wave','young-skeletons':'chase','young-ghosts':'breath',
+                'pumpkins':'breath','bats':'wave','spiders':'chase','bones':'chase',
+                'embers':'wave','wisps':'wave','owls':'breath','cheshire':'chase','shadowplay':'wave'}.get(mode,'chase')
     soft_colour(p,shape,c2,.32)
     if motion=='breath':
         breath=.5-.5*math.cos(TAU*t/5+phase)

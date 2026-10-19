@@ -128,6 +128,14 @@ class SpectacleTests(unittest.TestCase):
                 self.assertEqual(previous.args[1],120-last_start+last_offset)
                 self.assertEqual(first.pixelColor(400,600),QColor('#71422a'))
 
+    def test_outgoing_scene_does_not_launch_a_new_lightning_flash(self):
+        data=model.default_project()
+        with patch('nightfall.renderer.lightning') as flash:
+            for frame in range(60):render(data,24+frame/60,'older')
+            flash.assert_not_called()
+            render(data,8,'older')
+            flash.assert_called_once()
+
     def test_architecture_scenes_do_not_send_bands_behind_windows(self):
         data=model.default_project();data['effects'].update(architecture_strength=0,tree_strength=0)
         for r in data['regions']:r['enabled']=r['id']=='facade'

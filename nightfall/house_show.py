@@ -135,7 +135,7 @@ def watching_eyes(p,rect,t):
     p.restore()
 
 
-def older_house(p,data,t,mode,strength):
+def older_house(p,data,t,mode,strength,allow_restart=True):
     """Separated upper, middle and ledge actions keep the entire house alive."""
     from .renderer import facade_cast
     from .spectacle import draw_actor,character_swarm
@@ -158,8 +158,9 @@ def older_house(p,data,t,mode,strength):
     # silhouettes. Each cue has a different combination rather than clones.
     actor=None
     if mode=='older':
-        actor='owl' if t%24<8 else 'pumpkin' if t%24<16 else 'skeleton'
-        age=t%8;p.setOpacity(base*min(1,age/.5,(8-age)/.5))
+        local=t%24 if allow_restart else min(t,24-1e-6)
+        actor='owl' if local<8 else 'pumpkin' if local<16 else 'skeleton'
+        age=local%8;p.setOpacity(base*min(1,age/.5,(8-age)/.5))
     elif mode in {'embers','bones','spiders'}:actor='pumpkin'
     elif mode in {'bats','cheshire','shadowplay'}:actor='owl'
     elif mode=='clockwork':actor='skeleton'
@@ -262,14 +263,14 @@ def curtain_candles(p,r,t):
     p.restore()
 
 
-def young_house(p,data,t,strength):
+def young_house(p,data,t,strength,allow_restart=True):
     """A 30-second miniature play; the house supplies routes and supports."""
     from .renderer import facade_shape,figure_shape
     from .spectacle import draw_actor
     from .effects import envelope,cheshire
     safe=figure_shape(data,facade_shape(data,model.region(data,'facade')))
     p.save();p.setClipPath(safe,Qt.IntersectClip);p.setCompositionMode(QPainter.CompositionMode_SourceOver);base=p.opacity()*strength
-    local=t%30;attic,right=ghost_circuits(data)
+    local=t%30 if allow_restart else min(t,30-1e-6);attic,right=ghost_circuits(data)
     if local<10:
         for rect in ledge_slots(data,1,(70,86)):
             target,_=grounded_actor_rect('young-skeleton',t,rect)

@@ -32,7 +32,7 @@ def render_show(data,t,show='show'):
         current=render_scene(data,t-start+offset,mode,actor_strength=smooth(max(0,2*age-1)))
         previous_start,previous_mode,previous_offset=scenes[index-1]
         previous_age=(t-previous_start)%120
-        result=render_scene(data,previous_age+previous_offset,previous_mode,actor_strength=smooth(max(0,1-2*age)))
+        result=render_scene(data,previous_age+previous_offset,previous_mode,actor_strength=smooth(max(0,1-2*age)),allow_events=False)
         p=QPainter(result);p.setOpacity(smooth(t-start));p.drawImage(0,0,current);p.end();current=result
     else:current=render_scene(data,t-start+offset,mode)
     return current
@@ -298,7 +298,7 @@ def render(data,t=0,mode='wireframe',selected=None):
     if mode in SHOW_SCENES:return render_show(data,t,mode)
     return render_scene(data,t,mode,selected)
 
-def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1):
+def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1,allow_events=True):
     """Render a native-resolution QImage; nothing from the editor enters output."""
     im=QImage(WIDTH,HEIGHT,QImage.Format_RGB32);im.fill(Qt.black)
     p=QPainter(im);p.setRenderHints(QPainter.Antialiasing|QPainter.SmoothPixmapTransform)
@@ -359,7 +359,7 @@ def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1):
         if r['id']=='facade':
             cast=facade_cast(data)[1] if mode in {'young','older','moonlight'} else ()
             if old:
-                if mode=='older':lightning(p,b,t,data.get('effects',{}).get('lightning_strength',.85))
+                if mode=='older' and allow_events:lightning(p,b,t,data.get('effects',{}).get('lightning_strength',.85))
                 reveal=max(cycle(t,s,8,1.2) for s in [0,28,40,68,80,108])
                 if mode in {'older','moonlight'} and cast and cast[0] is not None:
                     p.setOpacity(gain*.85*reveal*actor_strength);fly(p,flight_shape,b,t,1,True,kind='older-wraith',slot=cast[0])
@@ -399,7 +399,7 @@ def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1):
         elif r['id']=='bay':
             a=max(cycle(t,s,4) for s in [25,55,85,115]);p.setOpacity(gain*a);p.setPen(Qt.NoPen);p.setBrush(QColor('#91d8a4' if old else '#ffe0a4'))
             for i in range(5):p.drawEllipse(QPointF(x+((t/4+i*.13)%1)*w,y+h*.5),2,2)
-        p.setOpacity(gain);draw_extras(p,data,r,t,mode,paint_shape,b,actor_strength)
+        p.setOpacity(gain);draw_extras(p,data,r,t,mode,paint_shape,b,actor_strength,allow_events=allow_events)
         p.restore()
         if r['id']=='facade':
             p.resetTransform();p.setOpacity(1);p.setCompositionMode(QPainter.CompositionMode_DestinationIn)
@@ -432,4 +432,4 @@ def render_scene(data,t=0,mode='wireframe',selected=None,actor_strength=1):
             p.fillPath(forbidden,Qt.black)
     if debug:draw_origin(p,data)
     p.end()
-    return im if debug else balance_materials(brighten(im,data.get('effects',{}).get('brightness_gain',3)),data,mode,t)
+    return im if debug else balance_materials(brighten(im,data.get('effects',{}).get('brightness_gain',3)),data,mode,t,allow_events)

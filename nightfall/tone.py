@@ -5,10 +5,10 @@ _tables={}
 _materials={}
 
 
-def balance_materials(image,data,mode,t):
+def balance_materials(image,data,mode,t,allow_restart=True):
     """White trim reflects far more than brick: attenuate after wall gain.
 
-    Keep coloured motion, remove most of the neutral white wash, and leave
+    Keep coloured motion, reduce the neutral white wash, and leave
     the occupied bay ledge especially quiet so its performers stay dominant.
     Calibration patterns deliberately bypass this video-only correction.
     """
@@ -38,17 +38,20 @@ def balance_materials(image,data,mode,t):
             masks[name]=(indices,alpha[indices].astype(np.float32)[:,None]/255)
         if len(_materials)>=4:_materials.clear()
         _materials[key]=masks
-    occupied=(mode in {'older','pumpkins','owls','bones','spiders','bats','embers','clockwork','electric','cheshire','shadowplay'}
-              or mode=='young' and (t%30<10 or 19<=t%30<24))
-    trim=effects.get('white_trim_level',.22)
-    levels={'trim':min(1,trim*1.5) if mode in {'waves','haunted'} else trim,
-            'ledge':effects.get('occupied_ledge_level',.08) if occupied else trim,
-            'cloth':effects.get('white_curtain_level',.30)}
+    occupied=float(mode in {'older','pumpkins','owls','bones','spiders','bats','embers','clockwork','electric','cheshire','shadowplay'})
+    if mode=='young':
+        from .effects import envelope
+        local=t%30 if allow_restart else min(t,30-1e-6)
+        occupied=max(envelope(local,0,10,30),envelope(local,19,5,30))
+    trim=effects.get('white_trim_level',.38)
+    levels={'trim':min(1,trim*1.35) if mode in {'waves','haunted'} else trim,
+            'ledge':trim+(effects.get('occupied_ledge_level',.16)-trim)*occupied,
+            'cloth':effects.get('white_curtain_level',.45)}
     pixels=np.frombuffer(image.bits(),np.uint8).reshape(-1,4)
     for name,(indices,coverage) in _materials[key].items():
         if not len(indices):continue
         original=pixels[indices,:3].astype(np.float32)
-        target=original if name=='cloth' else original-original.min(axis=1)[:,None]*.90
+        target=original if name=='cloth' else original-original.min(axis=1)[:,None]*.35
         target=target*levels[name]
         pixels[indices,:3]=np.rint(original+(target-original)*coverage).clip(0,255).astype(np.uint8)
     return image

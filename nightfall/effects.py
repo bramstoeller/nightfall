@@ -259,7 +259,7 @@ def _cheshire_layers(p,b,t):
     p.setOpacity(base*grin);p.drawImage(target,cat_image('mouth',size));p.restore()
 
 
-def draw_extras(p,data,r,t,mode,shape,b,actor_strength=1):
+def draw_extras(p,data,r,t,mode,shape,b,actor_strength=1,allow_events=True):
     if mode not in STYLES:return
     _,c1,c2,_=STYLES[mode]
     if mode in SPECTACLE_STYLES:
@@ -277,7 +277,7 @@ def draw_extras(p,data,r,t,mode,shape,b,actor_strength=1):
             p.setOpacity(gain*.9*actor_strength);bats(p,b,t,c1,figure_shape(data,facade_shape(data,r)))
         if mode=='young':
             from .house_show import young_house
-            p.setOpacity(gain);young_house(p,data,t,actor_strength)
+            p.setOpacity(gain);young_house(p,data,t,actor_strength,allow_restart=allow_events)
             p.setOpacity(gain);fireflies(p,shape,b,t,10)
         if mode in {'cheshire','older'}:
             # The clear brickwork between attic and upper windows is the stage.
@@ -291,7 +291,7 @@ def draw_extras(p,data,r,t,mode,shape,b,actor_strength=1):
                 p.setOpacity(gain*appearance*actor_strength);cheshire(p,area,cat_time);p.restore()
         if mode in {'older','embers','shadowplay','cheshire'}:
             from .house_show import older_house
-            p.setOpacity(gain);older_house(p,data,t,mode,actor_strength)
+            p.setOpacity(gain);older_house(p,data,t,mode,actor_strength,allow_restart=allow_events)
     elif r['id']=='roof' or r['id'].startswith('bay-trim'):
         pulse=.55+.35*math.sin(TAU*t/12+b.x()*.01)
         soft_colour(p,shape,c1,pulse)
